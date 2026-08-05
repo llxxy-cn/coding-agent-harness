@@ -342,7 +342,7 @@ stateDiagram-v2
 
 审批记录至少具有 `pending`、`approved`、`consumed`、`executed`、`denied`、`cancelled` 和 `expired`。成功执行路径严格为 `pending → approved → consumed → executed`。批准只记录决定，不自动执行；用户必须另行明确 Resume。ResumeValidation 成功时，StateStore 才把有效批准原子转换为 `consumed`；工具完整结束后才转为 `executed`。拒绝不产生工具副作用，可返回 `Deciding` 并回灌拒绝结果。
 
-审批绑定 `task_id`、规范化 Action、Patch 内容或引用、当前文件哈希、配置哈希、CapabilitySet 哈希、风险原因和一次性 Action 哈希。Action、文件、配置或能力变化后审批失效。StateStore 只持久化、转换状态和原子消费；Policy Engine 负责判断绑定是否有效。审批转为 `consumed` 后，若执行前或执行中崩溃，Action 必须进入 `unknown_outcome`，审批保持 `consumed`，不得重试、回退为 `approved` 或再次消费。
+审批绑定 `task_id`、规范化 Action、Patch 内容或引用、当前文件哈希、配置哈希、CapabilitySet 哈希、风险原因和一次性 Action 哈希。Action、文件、配置或能力变化后审批失效。StateStore 只持久化、转换状态和原子消费；Policy Engine 负责判断绑定是否有效。对需审批 Action，`ApprovalStatus.CONSUMED`、Action 最终持久化为 `ActionStatus.EXECUTING`、执行意图日志写入必须在同一 SQLite 事务中提交。事务可记录逻辑 `READY → EXECUTING` 事件，但不得暴露可恢复的 `consumed + READY` 持久化窗口；事务提交后才启动外部副作用。提交后若执行前或执行中崩溃，Action 必须进入 `UNKNOWN_OUTCOME`，审批保持 `CONSUMED`，不得重试、回退或再次消费。
 
 ## 8. 端到端数据流
 
@@ -398,7 +398,7 @@ sequenceDiagram
 
 所有非 Patch 工具遵循：
 
-`Schema 验证 → Policy → Typed Tool Dispatcher → TypedToolResult → 字段级脱敏 → SQLite 持久化 → 回灌`
+`Schema 验证 → Policy → Typed Tool Dispatcher → ToolResult[ToolPayloadUnion] → 字段级脱敏 → SQLite 持久化 → 回灌`
 
 `list_files`、`read_file`、`search_code`、`git_diff`、`git_status`、`run_diagnostic` 和局部 `run_tests` 都不能绕过 Policy。只有完整成功的 `apply_patch` 自动触发冻结完整验收；局部测试不能触发 `Succeeded`。
 
@@ -410,7 +410,7 @@ Core 创建 Pending Approval 后进入 `AwaitingApproval`。Application Service 
 - CLI 使用本地交互式确认提交 `ApprovalDecision`，不使用浏览器安全字段；
 - Human 不直接调用 Core；
 - approve/deny 先持久化决定；approve 保持等待，直到用户明确 Resume；
-- ResumeValidation 成功后，StateStore 将有效审批从 `approved` 原子转换为 `consumed`；Patch 进入 `RevalidatingPatch`，非 Patch 进入 `ExecutingNonPatch`；工具完整结束后才把审批转为 `executed`。
+- ResumeValidation 和绑定复验成功后，StateStore 在同一 SQLite 事务中写入审批 `consumed`、Action `executing` 和执行意图；事务提交后 Patch 才进入外部 Revalidating/Apply 路径，非 Patch 才启动工具；工具完整结束后才把审批转为 `executed`。
 - 若审批已 `consumed` 而 Action 未形成确定结果，Action 标记为 `unknown_outcome`，任务进入 `PausedForHuman`；审批保持 `consumed`，不得自动重试或再次消费。
 
 ### 8.4 测试输出
@@ -440,25 +440,179 @@ flowchart LR
 
 ### 9.1 Action
 
-LLM 输出必须匹配 Pydantic 严格判别联合 Schema：
+#### 9.1.1 公共结构与解析
 
-- 必须包含唯一且已知的 `type`；
-- 拒绝缺失字段、额外字段和类型不匹配；
-- 路径、命令和参数先规范化再进入 Policy；
-- 原始模型输出不能直接执行；
-- 协议错误转为结构化反馈并消耗 Action 预算。
+| 项目 | 权威契约 |
+|---|---|
+| `ValidatedAction` | 公共、冻结、`extra="forbid"`、不可直接实例化的抽象基类 |
+| 九个具体 Action | 均冻结、`extra="forbid"`；成功解析只返回其中一个具体子类 |
+| `ActionUnion` | 内部判别联合，以 `type` 为 discriminator |
+| `FinishAction` | 不存在；`finish` 按 `UNKNOWN_ACTION` 处理 |
+| `parse_action` | `parse_action(raw: str | dict[str, object]) -> ValidatedAction | ProtocolError` |
 
-`ScriptedMockLLM` 按预设顺序返回 Action，并记录每一轮完整输入，用于验证反馈回灌、上下文构造、敏感信息隔离和停机。
+字符串输入使用严格 JSON：拒绝尾随内容、重复键、`NaN`、`Infinity`、`-Infinity`；顶层必须为 object。直接 dict 至少浅复制顶层映射且不得修改调用者对象，嵌套值由冻结模型转换为自身不可变表示。运行时签名外类型返回 `INVALID_TOP_LEVEL`，不得抛出 `TypeError`。所有 JSON、Pydantic 和防御性解析异常均在函数内转换。`type` 必须为 `StrictStr` 并匹配 `^[a-z][a-z0-9_]{0,63}$`。
 
-### 9.2 测试命令
+| 优先级 | 条件 | ProtocolErrorCode |
+|---:|---|---|
+| 1 | 字符串不是严格合法 JSON | `INVALID_JSON` |
+| 2 | JSON 顶层不是 object，或运行时输入类型不受支持 | `INVALID_TOP_LEVEL` |
+| 3 | object 缺少 `type` | `MISSING_TYPE` |
+| 4 | `type` 不是 StrictStr 或不匹配结构正则 | `INVALID_TYPE` |
+| 5 | 结构合法但不是九种已知 Action；包括 `finish` | `UNKNOWN_ACTION` |
+| 6 | 已识别 Action 的字段、额外字段或跨字段约束失败 | `SCHEMA_VIOLATION` |
 
-- 用户显式命令优先，声明式默认命令兜底；
-- 首版仅支持 `pytest` 和 `python -m pytest`；
-- 任务启动时解析为参数数组、校验并冻结；
-- 使用 `shell=False`；禁止管道、重定向、命令连接和命令替换；
-- LLM 不能替换、取消或跳过完整命令；
-- 局部测试必须仍是受控 pytest，且不参与最终成功判定。
+`ProtocolErrorCode` 使用 `@unique`；成员名大写、值为下表小写 snake_case；字符串输入只接受精确 `.value`，不 trim、不改大小写；JSON 输出 `.value`；测试比较 `.value` 且不依赖枚举顺序。
 
+| 成员 | `.value` | `sanitized_message` 固定英文 ASCII |
+|---|---|---|
+| `INVALID_JSON` | `invalid_json` | `Action must be a valid JSON object.` |
+| `INVALID_TOP_LEVEL` | `invalid_top_level` | `Action must be a JSON object.` |
+| `MISSING_TYPE` | `missing_type` | `Action field 'type' is required.` |
+| `INVALID_TYPE` | `invalid_type` | `Action field 'type' must match ^[a-z][a-z0-9_]{0,63}$.` |
+| `UNKNOWN_ACTION` | `unknown_action` | `Action type is not supported.` |
+| `SCHEMA_VIOLATION` | `schema_violation` | `Action fields do not match the required schema.` |
+
+`ProtocolError` 冻结、`extra="forbid"`，仅含 `code: ProtocolErrorCode` 与 `sanitized_message: StrictStr`。消息不得包含原始输入、字段值、未知 Action 名、供应商异常或 Pydantic 细节。测试不得依赖 Pydantic 内部错误文本、位置格式或版本差异。协议错误形成结构化反馈并消耗 Action 预算，原始模型输出不能直接执行。
+
+#### 9.1.2 公共路径契约
+
+| 项目 | 约束 |
+|---|---|
+| 类型／长度 | `str`，1～4096 个 Unicode 字符 |
+| 存在性 | `list_files`、`read_file`、`search_code` 均必填且无默认 |
+| 根路径 | `.` 合法且必须显式提供 |
+| Schema 拒绝 | 空字符串、NUL、明显绝对路径 |
+| Schema 不做 | trim、路径规范化、内容改写、隐式默认 |
+| 后续路径安全组件 | Windows 盘符、UNC、`..` 越界、符号链接、规范化，以及规范化后仍位于任务 worktree 根内 |
+
+#### 9.1.3 九种 Action 字段表
+
+##### ListFilesAction
+
+| 字段 | 类型 | 必填／默认 | 约束 |
+|---|---|---|---|
+| `type` | `Literal["list_files"]` | 必填 | discriminator |
+| `path` | `str` | 必填、无默认 | §9.1.2 |
+| `recursive` | `StrictBool` | 必填、无默认 | 拒绝 0/1、字符串及其他布尔转换 |
+
+不提供 `max_depth`、`limit`、`glob`。结果数量、输出字节、截断和资源上限由工具实现及 `FrozenConfig` 控制。
+
+##### ReadFileAction
+
+| 字段 | 类型 | 必填／默认 | 约束 |
+|---|---|---|---|
+| `type` | `Literal["read_file"]` | 必填 | discriminator |
+| `path` | `str` | 必填、无默认 | §9.1.2 |
+| `start_line` | `StrictInt | None` | 默认 `None` | 与 end 同时提供或省略 |
+| `end_line` | `StrictInt | None` | 默认 `None` | 与 start 同时提供或省略 |
+
+| start/end | 结果 |
+|---|---|
+| 均为 `None` | 从文件开头读取，仍受冻结行数、字节数和截断限制 |
+| 仅一个存在 | `SCHEMA_VIOLATION` |
+| 均存在且 `1 <= start_line <= end_line <= 1_000_000` | 从 1 开始的包含式范围 |
+| bool、浮点、数字字符串或越界 | `SCHEMA_VIOLATION` |
+
+Action 不指定编码、错误策略或输出上限；文件类型、路径、符号链接安全由文件系统组件处理。具体 ReadFilePayload 后续须定义 `truncated` 和可继续读取位置，Task 2 不提前定义真实 payload。
+
+##### SearchCodeAction
+
+| 字段 | 类型 | 必填／默认 | 约束 |
+|---|---|---|---|
+| `type` | `Literal["search_code"]` | 必填 | discriminator |
+| `path` | `str` | 必填、无默认 | §9.1.2 |
+| `query` | `StrictStr` | 必填、无默认 | 1～1000 Unicode；非纯空白；拒绝 NUL、CR、LF；内部普通空格允许；始终 literal |
+| `case_sensitive` | `StrictBool` | 必填、无默认 | 拒绝类型转换 |
+
+path 为目录时固定递归，为文件时仅搜索该文件。不提供 `regex`、`recursive`、`glob`、`max_results`、`context_lines` 或输出上限。工具任务必须先冻结文件筛选、隐藏文件、Git ignore、二进制检测、确定性排序、上下文行与截断规则。
+
+##### ApplyPatchAction
+
+| 字段 | 类型 | 必填／默认 | 约束 |
+|---|---|---|---|
+| `type` | `Literal["apply_patch"]` | 必填 | discriminator |
+| `diff` | `StrictStr` | 必填、无默认 | 完整内联单次逻辑 unified diff，可含多文件 |
+
+| diff 协议 | 约束 |
+|---|---|
+| 内容 | 非空、非纯空白；拒绝 NUL、CR；只允许 LF；必须以 LF 结尾 |
+| 编码／大小 | 必须严格编码 UTF-8，拒绝孤立 surrogate；1～2,097,152 字节 |
+| 稳定性 | 不 trim、不规范化、不改写；原始字符串及字节序列保持稳定，参与后续 Action 哈希与审批绑定 |
+| Task 2 不做 | 不解析 header、hunk、路径；违反即 ProtocolError，不进入 Policy 或 `prepare(diff)` |
+| 后续 prepare | unified diff 解析、路径规范化、hunk、前置哈希、PatchFacts、pre-image、风险和审批绑定 |
+
+LLM 不得提交 `artifact_ref`、`path`、`files`、`reason`、`approval`、`base_hash`、Patch 模式或可调安全上限。内部持久化可把精确 diff 转为受限 Patch 工件引用和 SHA-256，但不改变 LLM 协议或原始字节。此处不定义 canonical JSON 算法。
+
+##### RunTestsAction
+
+| 字段 | 类型 | 必填／默认 | 约束 |
+|---|---|---|---|
+| `type` | `Literal["run_tests"]` | 必填 | discriminator |
+| `scope` | `Literal["full", "focused"]` | 必填、无默认 | 精确值 |
+| `targets` | `tuple[StrictStr, ...]` | 必填、无默认 | JSON 必须为数组，验证后为 tuple |
+
+| scope | targets | 语义 |
+|---|---|---|
+| `full` | 必须为空 | 只能执行冻结完整验收命令 |
+| `focused` | 必须非空 | 受控 pytest target；绝不能触发 `Succeeded` |
+
+不提供 `command`、`argv`、`cwd`、`env`、`timeout`、`parallel`、`markers`、`keyword` 或输出限制。Patch 后完整测试由 Core 自动触发，LLM 不能跳过或替代。主动 requested-full 是否可绑定当前文件哈希与冻结配置后触发成功，由后续状态机契约确定。
+
+| Focused target 项目 | 规则 |
+|---|---|
+| 数量／长度 | 1～32 项；每项 1～4096 Unicode；严格 UTF-8、拒绝孤立 surrogate；总 UTF-8 <=32,768 字节 |
+| 通用拒绝 | 空、纯空白、NUL、CR、LF、以 `-` 开头、`.`、glob、pytest flags、完全重复 |
+| 稳定性 | 不去重、不排序；保留输入顺序和原字符串并参与 canonical Action |
+| PATH | 非空、相对 `.py` 文件路径；不得纯空白或有首尾 Unicode 空白；拒绝 NUL、CR、LF、`::`、明显绝对路径及调用者包裹引号；内部 U+0020 允许 |
+| 节点 | 可省略；否则一个或多个非空 SELECTOR，以 `::` 分隔；每段须 `str.isidentifier()`，不得有空段或单独 `:` |
+| 参数化 | 仅最后 selector 可有一个最终 `[PARAM_ID]`；须已有 selector；PARAM_ID 为 1～512 Unicode，拒绝 `[`, `]`, NUL, CR, LF，允许空格、`::`、Shell 元字符；拒绝多后缀或 `]` 后内容 |
+| 执行 | target 始终作为一个 argv 元素，`shell=False`，不经 Shell、转义或命令解释 |
+| 后续组件 | Windows 盘符、UNC、`..`、规范化、符号链接、最终根内检查及受保护测试资产归属 |
+
+##### GitDiffAction 与 GitStatusAction
+
+| Action | 字段 | 固定语义 |
+|---|---|---|
+| `GitDiffAction` | 仅 `type: Literal["git_diff"]` | 比较冻结 `base_commit` 与任务 worktree；覆盖允许源码 staged、unstaged、新增文件；未跟踪文件生成确定性 synthetic unified diff |
+| `GitStatusAction` | 仅 `type: Literal["git_status"]` | 返回任务 worktree 的结构化状态 |
+
+两者不得接受 `ref`、`commit`、`range`、`pathspec`、`staged`、`stat`、porcelain 版本、ignored/untracked 开关或其他 Git 参数；不得读取任意 Git 历史。状态分类、重命名表示、路径排序、脱敏与截断由 Workspace 工具契约定义。
+
+##### RunDiagnosticAction
+
+| 字段 | 类型 | 必填／默认 | 约束 |
+|---|---|---|---|
+| `type` | `Literal["run_diagnostic"]` | 必填 | discriminator |
+| `diagnostic_id` | `StrictStr` | 必填、无默认 | 1～64 ASCII；`^[a-z][a-z0-9_]{0,63}$`；不 trim、不改大小写 |
+| `arguments` | `tuple[StrictStr, ...]` | 必填、无默认 | JSON 数组转 tuple；无参数显式 `[]` |
+
+arguments 为 0～32 项；单项 0～4096 Unicode，允许空串，严格 UTF-8、拒绝孤立 surrogate、NUL、CR、LF；总 UTF-8 <=32,768 字节。不因 `-`、空格或 Shell 元字符通用拒绝；不 trim、排序、去重、展开环境变量或规范化路径；精确顺序和内容参与 canonical Action。
+
+LLM 不得提供 `command`、完整 `argv`、executable、`shell`、`cwd`、`env` 或 `timeout`。ID 只引用启动时冻结在 `FrozenConfig`/`CapabilitySet` 的模板；模板固定 executable、固定参数、变量参数 Schema、cwd、清理环境、超时、输出和资源限制。未知或当前模式不可用 ID 由 Capability/Policy 稳定拒绝且不启动进程。仓库配置只能禁用或收紧已有模板。处理顺序为通用协议 → Capability → 模板参数 Schema → Policy → `shell=False` 执行。
+
+##### RequestHumanAction
+
+| 字段 | 类型 | 必填／默认 | 约束 |
+|---|---|---|---|
+| `type` | `Literal["request_human"]` | 必填 | discriminator |
+| `reason` | `StrictStr` | 必填、无默认 | 同时说明自动流程不能安全继续的原因和需要人工处理的事项 |
+
+reason 为 1～4000 Unicode、UTF-8 <=16,384 字节，必须严格编码并拒绝孤立 surrogate；不得为空、纯空白或有首尾 Unicode 空白；允许内部普通空格和 LF；拒绝 CR、U+2028、U+2029 及除 LF 外全部 Unicode Cc（包括 NUL、TAB、ESC、DEL、C1）。不做 Unicode normalization、Markdown/HTML 解析或内容改写；精确原文参与 canonical Action。字段级脱敏生成独立安全展示／持久化副本，不替代原始 Action 哈希；UI 按输出上下文 HTML escaping。
+
+不提供 `question`、`choices`、`kind`、`approval_action_hash`、`resume_state` 或自由 payload；不自动创建工具或 Patch 审批，也不能指定恢复状态或绕过 ResumeValidation。Application Service 的后续输入不修改原 Action。成功触发 `PausedForHuman` 时该 Action 记为 `ActionStatus.SUCCEEDED`，且不进入外部工具副作用窗口。
+
+### 9.2 测试命令与 FrozenCommand
+
+- 用户显式命令优先，声明式默认命令兜底；任务启动时解析、校验并冻结。
+- LLM 不能替换、取消或跳过完整命令；局部测试受控且不参与最终成功判定。
+
+| 字段 | 类型 | 必填／默认 |
+|---|---|---|
+| `argv` | `tuple[StrictStr, ...]` | 必填、无默认；JSON 必须为数组，验证后为 tuple |
+
+`FrozenCommand` 冻结、`extra="forbid"`，且不含拼接命令、cwd、env、timeout、shell、配置哈希、来源或派生哈希。只允许大小写敏感逻辑前缀 `("pytest", *pytest_args)` 或 `("python", "-m", "pytest", *pytest_args)`；拒绝 python.exe、python3、py、绝对 executable 和模块别名。逻辑标识由冻结执行上下文解析到任务绑定的受信解释器／入口，不得通过任意 PATH 选择。
+
+argv 为 1～64 项；每项为非空 StrictStr、1～4096 Unicode；总 UTF-8 <=32,768 字节；严格 UTF-8并拒绝孤立 surrogate、NUL、CR、LF、首尾 Unicode 空白；允许内部普通空格；不规范化、排序、去重或展开环境变量。精确顺序和内容进入后续 canonical JSON。pytest 参数规则由命令冻结组件执行；用户文本中的管道、重定向、连接和命令替换在形成 FrozenCommand 前拒绝。模型只能由任务启动／配置解析流程创建，不能来自 LLM；执行逐元素传参并固定 `shell=False`。canonical JSON 精确算法仍归 Task 8。
 ### 9.3 Strict Patch Applier 两阶段 API
 
 `prepare(diff)`：
@@ -564,6 +718,231 @@ Policy Engine 根据 `PreparedPatch`、`PatchFacts`、FrozenConfig 和审批记�
 
 ## 11. 数据模型
 
+### 11.1 通用模型规则、TaskId 与 ArtifactRef
+
+本节“字段全部必填且无默认”的总则仅适用于 SPEC §11 的模型，不适用于 SPEC §9 Action；§9 的必填性和默认值只由各 Action 字段表决定。除表格明确可空字段外，§11 模型字段全部必填且无默认；模型冻结并 `extra="forbid"`。StrictInt 拒绝 bool、浮点和数字字符串。公共 path 继续使用 §9.1.2 已确认的 `str` 契约，Task 2 Red 不得擅自加入 StrictStr 专属断言。
+
+#### TaskId
+
+| 字段 | 类型 | 约束 |
+|---|---|---|
+| `value` | `UUID` | RFC 4122 variant UUIDv4；Python UUID 对象或规范小写连字符字符串 |
+
+字符串必须与解析后 `str(uuid)` 完全一致，不静默规范化；拒绝 nil、其他版本、无连字符、大写、花括号、整数和 bytes。JSON 固定输出小写连字符字符串。Task ID 由 Application Service 使用安全随机 UUIDv4 生成，不由 LLM Action 提供。
+
+#### ArtifactRef
+
+| 字段 | 类型 | 约束 |
+|---|---|---|
+| `artifact_id` | `UUID` | 规范 RFC 4122 UUIDv4 |
+| `task_id` | `TaskId` | 工件所属任务 |
+| `schema_id` | `StrictStr` | `^[a-z][a-z0-9_.]{0,127}$` |
+| `schema_version` | `StrictInt` | 1～65535 |
+| `media_type` | `StrictStr` | 无参数、小写 type/subtype；`^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}/[a-z0-9][a-z0-9!#$&^_.+-]{0,63}$` |
+| `byte_length` | `StrictInt` | 0～2^63-1；精确、未压缩 canonical artifact 字节数 |
+| `sha256` | `StrictStr` | 精确 canonical 字节的 64 位小写十六进制摘要 |
+
+ArtifactRef 不含路径、URI、时间、生命周期、压缩、权限、存储实现或内联内容；`artifact_id` 不要求由内容哈希生成。ArtifactStore 加载时必须先验证任务所有权、byte length、SHA-256、Schema 和 media type，失败时不得反序列化。
+
+### 11.2 ToolPayload、ToolResult 与 ToolErrorCode
+
+`ToolPayload` 是冻结、`extra="forbid"`、不可直接实例化的抽象基类。各工具任务在实现前定义自己的具体、冻结 ToolPayload 子类；禁止 dict、list、Any 或无 Schema JSON。RequestHuman 是否存在工具结果由 Dispatcher／状态机任务决定，Task 2 不预设 payload。
+Task 2 定义 `PayloadT = TypeVar("PayloadT", bound=ToolPayload)`；`ToolResult[PayloadT]` 用于一个具体工具的结果。Task 6 在全部具体 payload 定义后建立封闭 `ToolPayloadUnion`，异构 Dispatcher 返回 `ToolResult[ToolPayloadUnion]`。
+
+| ToolResult 字段 | 类型 | 必填／默认 |
+|---|---|---|
+| `ok` | `StrictBool` | 必填、无默认 |
+| `payload` | `PayloadT | None` | 必填、无默认 |
+| `error_code` | `ToolErrorCode | None` | 必填、无默认 |
+| `sanitized_message` | `StrictStr | None` | 必填、无默认 |
+
+| `ok` | payload | error_code | sanitized_message |
+|---|---|---|---|
+| `True` | 必须为具体 ToolPayload；无数据成功使用显式空 payload 子类 | 必须 `None` | 必须 `None` |
+| `False` | 必须 `None` | 必须存在 | 必须为符合下述约束的非空 StrictStr |
+对 `run_tests`，只要 Harness 能形成并安全持久化完整可信的 TestRun，Dispatcher 就返回成功 ToolResult，即使 TestRunOutcome 为 TIMED_OUT、RESOURCE_LIMIT、ENVIRONMENT_ERROR、UNPARSEABLE、CANCELLED、UNKNOWN_OUTCOME 或 WORKSPACE_DRIFT。只有无法形成完整可信 TestRun 时才返回失败 ToolResult，例如请求非法、路径／安全拒绝、状态冲突、工件写入或完整性失败。不得用 ToolErrorCode 取代已经可靠形成的 TestRunOutcome。
+
+`ToolErrorCode` 使用 `@unique`、禁止别名；成员名大写、值小写 snake_case；字符串只接受精确 `.value`，不 trim、不改大小写；JSON 输出和测试比较 `.value`；定义顺序无业务意义。
+
+| 成员 | `.value` | 语义边界 |
+|---|---|---|
+| `INVALID_REQUEST` | `invalid_request` | 已进入工具边界但请求不满足工具专属契约 |
+| `NOT_FOUND` | `not_found` | 目标确定不存在 |
+| `SAFETY_VIOLATION` | `safety_violation` | 工具安全检查拒绝；Policy deny 不在 ToolResult |
+| `UNSUPPORTED` | `unsupported` | 请求合法但工具不支持 |
+| `CONFLICT` | `conflict` | 可以确定没有安全完成当前操作，不是未知结果 |
+| `TIMEOUT` | `timeout` | 工具超过冻结超时 |
+| `RESOURCE_LIMIT` | `resource_limit` | 触及冻结资源限制；正常可用截断仍是成功 payload |
+| `ENVIRONMENT_ERROR` | `environment_error` | 受信环境阻止执行 |
+| `EXECUTION_FAILED` | `execution_failed` | 工具确定执行失败；可解析 pytest 失败是正常 TestRun payload，不用此码 |
+| `UNKNOWN_OUTCOME` | `unknown_outcome` | 副作用结果无法判断；禁止自动重试 |
+
+Policy deny、待审批和协议错误不进入 ToolResult。失败 `sanitized_message` 为 1～2000 Unicode、UTF-8 <=8192 字节，严格编码、拒绝孤立 surrogate；不得为空、纯空白、有首尾 Unicode 空白、CR、LF、U+2028、U+2029 或任何 Unicode Cc；不做 normalization、Markdown/HTML 解析或改写。每个工具必须有至少由 `(tool_type, ToolErrorCode, stable_reason_key)` 确定的封闭固定英文 ASCII 模板，只插入规则化、脱敏、限长安全值。禁止底层异常、stderr、进程输出、绝对路径、环境变量、凭据、模型输出或堆栈。字段级脱敏必须在最终 ToolResult 创建前完成；相同规范化输入、工具版本和原因逐字符稳定；SQLite、日志和 LLM 使用同一安全消息，UI 仅额外上下文转义。
+
+### 11.3 TestRun
+
+TestRun 是一次测试执行完成后的冻结、已脱敏、有界、可持久化记录，不等于 subprocess 返回值，也不聚合 progress/regression/cycle。它不直接嵌入 SanitizedTestOutput 或 ParsedTestResult，不含未脱敏 stdout/stderr、BoundedRawOutput、进程／句柄、进程控制对象、底层异常或跨运行判断。TestExecution 是 Task 9 瞬时结果；SanitizedTestOutput 是安全工件内容；ParsedTestResult 是 Task 10 结构化解析内容；FeedbackDecision 是独立跨运行分析。
+
+| 字段 | 类型 | 约束 |
+|---|---|---|
+| `run_id` | `UUID` | 规范 UUIDv4 |
+| `task_id` | `TaskId` | 任务绑定 |
+| `phase` | `TestPhase` | 下表封闭枚举 |
+| `outcome` | `TestRunOutcome` | 下表封闭枚举 |
+| `command` | `FrozenCommand` | 冻结测试命令 |
+| `base_commit` | `StrictStr` | 40 或 64 位小写十六进制 |
+| `config_sha256` | `StrictStr` | 64 位小写十六进制 |
+| `environment_sha256` | `StrictStr` | 64 位小写十六进制 |
+| `workspace_before_sha256` | `StrictStr` | 64 位小写十六进制 |
+| `workspace_after_sha256` | `StrictStr` | 64 位小写十六进制 |
+| `started_at` | `datetime` | 原生 UTC zero-offset |
+| `finished_at` | `datetime` | 原生 UTC zero-offset，且不早于 started |
+| `duration_ms` | `StrictInt` | 0～2^63-1，单调时钟耗时 |
+| `exit_code` | `StrictInt | None` | 必填、显式可空；见矩阵 |
+| `sanitized_output_ref` | `ArtifactRef` | 必须存在；同 task；`sanitized_test_output` v1；`application/json` |
+| `parsed_result_ref` | `ArtifactRef | None` | 必填、显式可空；可靠且字段级脱敏后才存在；同 task；`parsed_result` v1；`application/json` |
+
+`TestPhase` 与 `TestRunOutcome` 均使用 `@unique` 及统一枚举输入／序列化规则。
+
+| TestPhase 成员 | `.value` |
+|---|---|
+| `BASELINE` | `baseline` |
+| `FOCUSED` | `focused` |
+| `POST_PATCH` | `post_patch` |
+| `RECOVERY` | `recovery` |
+| `RESUME_VALIDATION` | `resume_validation` |
+| `REQUESTED_FULL` | `requested_full` |
+
+主动 requested-full 是否可绑定当前文件状态与冻结配置后触发成功，由后续状态机契约确定。
+
+| TestRunOutcome | `.value` | exit_code | parsed_result_ref | workspace hash |
+|---|---|---|---|---|
+| `PASSED` | `passed` | 必须严格为 0 | 必须存在且可靠 | before = after |
+| `FAILED` | `failed` | 必须存在且非 0 | 必须存在且可靠 | before = after |
+| `TIMED_OUT` | `timed_out` | 必须 `None` | `None` | before = after |
+| `RESOURCE_LIMIT` | `resource_limit` | 可存在或 `None` | `None` | before = after |
+| `ENVIRONMENT_ERROR` | `environment_error` | 可存在或 `None` | `None` | before = after |
+| `UNPARSEABLE` | `unparseable` | 必须存在，但不得据值猜测通过 | `None` | before = after |
+| `CANCELLED` | `cancelled` | 必须 `None` | `None` | before = after |
+| `UNKNOWN_OUTCOME` | `unknown_outcome` | 必须 `None` | `None` | before = after |
+| `WORKSPACE_DRIFT` | `workspace_drift` | 可存在或 `None` | 必须 `None` | before != after |
+
+只要 governed workspace before/after 不一致，outcome 必须且只能是 WORKSPACE_DRIFT，不得记为 PASSED、FAILED 或 UNKNOWN_OUTCOME；漂移可在正常退出或异常中止后检测，Core 转人工处理。其他 outcome 必须具有相同 before/after hash。时间不接受非零时区后静默转换；canonical JSON 时间统一 `Z`。原始测试输出不得创建 ArtifactRef 或进入 ArtifactStore/SQLite。Feedback Engine 加载安全工件前验证引用、任务所有权、长度、摘要、Schema 和媒体类型。
+
+### 11.4 FeedbackDecision
+
+| 字段 | 类型 | 约束 |
+|---|---|---|
+| `kind` | `FeedbackKind` | 下表封闭枚举 |
+| `current_run_id` | `UUID` | 规范 UUIDv4 |
+| `previous_run_id` | `UUID | None` | 必填、显式可空；见矩阵 |
+| `matched_history_run_id` | `UUID | None` | 必填、显式可空；见矩阵 |
+| `state_fingerprint_sha256` | `StrictStr | None` | 必填、显式可空；见矩阵 |
+| `sanitized_summary` | `StrictStr` | 下述安全消息约束 |
+
+| FeedbackKind | `.value` | previous_run_id | matched_history_run_id | state fingerprint |
+|---|---|---|---|---|
+| `PASSED` | `passed` | 可为 `None` | 必须 `None` | 必须为 64 位小写 SHA-256 |
+| `PROGRESS` | `progress` | 必须存在且不同 current | 必须 `None` | 必须存在 |
+| `NO_PROGRESS` | `no_progress` | 必须存在且不同 current | 必须 `None` | 必须存在 |
+| `CHANGED` | `changed` | 必须存在且不同 current | 必须 `None` | 必须存在 |
+| `REGRESSION` | `regression` | 必须存在且不同 current | 必须 `None` | 必须存在 |
+| `LOOP` | `loop` | 必须存在且不同 current | 必须存在且不同 current | 必须存在，并与 matched history 指纹完全相同 |
+| `ENVIRONMENT_ERROR` | `environment_error` | 可为 `None`，但此类 run 不得成为后续 previous | 必须 `None` | 必须 `None` |
+| `UNPARSEABLE` | `unparseable` | 可为 `None`，但此类 run 不得成为后续 previous | 必须 `None` | 必须 `None` |
+
+ENVIRONMENT_ERROR 和 UNPARSEABLE 不参与进展、回归、无进展或循环历史，也不能成为后续 matched history。PASSED 指纹使用明确 canonical passed marker 与允许源码状态，不伪造失败集合。`FeedbackKind` 使用 `@unique` 和统一枚举规则。
+
+`sanitized_summary` 为 1～2000 Unicode、UTF-8 <=8192 字节，严格编码并拒绝孤立 surrogate；非空、非纯空白、无首尾 Unicode 空白、单行；拒绝 CR、LF、U+2028、U+2029 和全部 Unicode Cc；不做 normalization 或标记解析。使用稳定固定英文 ASCII 模板和安全限长替换；不得含 Core 指令、计数器、内联证据或底层异常；UI 另做上下文转义。
+
+### 11.5 TaskStatus、ActionStatus、PolicyOutcome 与 ApprovalStatus
+
+本节四个枚举均使用 `@unique`：成员名大写、序列化值小写 snake_case；禁止别名和重复值；字符串只接受精确 `.value`，不 trim、不改大小写；JSON 仅输出 `.value`；业务逻辑不得依赖定义顺序。
+
+#### TaskStatus
+
+TaskStatus 严格等于 SPEC §7 状态图除 Mermaid `[*]` 外的 24 个具名状态；§7 是含义与转换的权威来源。
+
+| 成员 | `.value` | SPEC §7 状态 |
+|---|---|---|
+| `CREATED` | `created` | Created |
+| `PREFLIGHT` | `preflight` | Preflight |
+| `AWAITING_TRUST` | `awaiting_trust` | AwaitingTrust |
+| `PREFLIGHT_FAILED` | `preflight_failed` | PreflightFailed |
+| `PREPARING_WORKSPACE` | `preparing_workspace` | PreparingWorkspace |
+| `BASELINE_TESTING` | `baseline_testing` | BaselineTesting |
+| `CANNOT_REPRODUCE` | `cannot_reproduce` | CannotReproduce |
+| `DECIDING` | `deciding` | Deciding |
+| `VALIDATING_ACTION` | `validating_action` | ValidatingAction |
+| `PREPARING_PATCH` | `preparing_patch` | PreparingPatch |
+| `POLICY_CHECK` | `policy_check` | PolicyCheck |
+| `AWAITING_APPROVAL` | `awaiting_approval` | AwaitingApproval |
+| `RESUME_VALIDATION` | `resume_validation` | ResumeValidation |
+| `REVALIDATING_PATCH` | `revalidating_patch` | RevalidatingPatch |
+| `APPLYING_PATCH` | `applying_patch` | ApplyingPatch |
+| `COMPENSATION_ROLLBACK` | `compensation_rollback` | CompensationRollback |
+| `EXECUTING_NON_PATCH` | `executing_non_patch` | ExecutingNonPatch |
+| `TESTING` | `testing` | Testing |
+| `SUCCEEDED` | `succeeded` | Succeeded |
+| `REGRESSION_ROLLBACK` | `regression_rollback` | RegressionRollback |
+| `RECOVERY_TESTING` | `recovery_testing` | RecoveryTesting |
+| `PAUSED_FOR_HUMAN` | `paused_for_human` | PausedForHuman |
+| `STOPPED` | `stopped` | Stopped |
+| `CANCELLED` | `cancelled` | Cancelled |
+
+不增加 RUNNING、FAILED、INTERRUPTED、UNKNOWN_OUTCOME、ENVIRONMENT_ERROR 或 WORKSPACE_DRIFT；审批、Action 生命周期、测试结果和转换原因分别属于其他类型。
+
+#### ActionStatus
+
+| 成员 | `.value` | 含义边界 |
+|---|---|---|
+| `RECEIVED` | `received` | 已接收并分配审计顺序，尚未完成协议验证 |
+| `VALIDATED` | `validated` | 已解析为具体 Action，尚未完成 prepare/Capability/Policy |
+| `AWAITING_APPROVAL` | `awaiting_approval` | 等待审批决定或 approved 后显式 Resume |
+| `READY` | `ready` | 逻辑过渡状态：已获 allow，或审批复验成功；需审批路径不得把 consumed + READY 暴露为可恢复持久化状态 |
+| `EXECUTING` | `executing` | 意图已持久化，进入可能产生外部副作用的窗口 |
+| `SUCCEEDED` | `succeeded` | Action 自身确定成功，不等于 Task 成功；正常 pytest 失败仍可对应 RunTestsAction 成功 |
+| `FAILED` | `failed` | Action 自身确定执行失败，不等于 Task 失败 |
+| `REJECTED` | `rejected` | 协议、prepare、Capability、Policy 或审批在副作用前拒绝 |
+| `INTERRUPTED` | `interrupted` | 崩溃后能确定未成功完成 |
+| `UNKNOWN_OUTCOME` | `unknown_outcome` | 结果无法可靠判断；禁止自动重试 |
+
+approved 但未 Resume 时仍为 AWAITING_APPROVAL。需审批路径在同一 SQLite 事务中提交 consumed、EXECUTING 和执行意图；事务可记录 READY → EXECUTING 事件但不得持久化可恢复的 consumed + READY 窗口。无审批路径也必须在外部副作用启动前持久化意图并进入 EXECUTING。RequestHuman 成功触发人工暂停时 Action 为 SUCCEEDED，且不进入外部副作用窗口。测试结果由 TestRunOutcome 表达。
+
+#### PolicyOutcome
+
+| 成员 | `.value` |
+|---|---|
+| `ALLOW` | `allow` |
+| `DENY` | `deny` |
+| `REQUIRE_APPROVAL` | `require_approval` |
+
+#### ApprovalStatus
+
+| 成员 | `.value` |
+|---|---|
+| `PENDING` | `pending` |
+| `APPROVED` | `approved` |
+| `CONSUMED` | `consumed` |
+| `EXECUTED` | `executed` |
+| `DENIED` | `denied` |
+| `CANCELLED` | `cancelled` |
+| `EXPIRED` | `expired` |
+
+测试验证完整 value 集合和无别名，不要求 name 小写。枚举不实现转换；approved 不表示执行，consumed 不得回退或再次消费。
+
+| 语义 | 拥有者 |
+|---|---|
+| 四个枚举的封闭词汇 | Task 2 |
+| TaskStatus、ActionStatus 纯合法转换表；根据 Task 7 Patch 结果映射 Action 状态 | Task 13 |
+| Application 生命周期编排 | Task 14 |
+| PolicyOutcome 产生条件及 `deny > require_approval > allow` | Task 8 |
+| 状态、意图日志和 CAS 前置条件持久化，不推导目标状态 | Task 5 |
+| 严格 Patch 执行／补偿结果，不执行 ActionStatus 转换 | Task 7 |
+
+### 11.6 Canonical JSON 边界
+
+Task 2 只确认需要 canonical JSON 字节与 SHA-256 绑定，以及字段不得被静默改写；精确算法尚未冻结。Task 8 实现前必须冻结并测试键排序、数字／字符串表示、枚举、UUID、UTC datetime `Z` 表示和最终 UTF-8 字节生成。此前不得声称算法已经完成定义。
 ```mermaid
 erDiagram
     TASKS ||--o{ ACTIONS : produces
@@ -606,23 +985,38 @@ erDiagram
         uuid task_id FK
         int sequence_no
         string action_type
-        string normalized_hash
         string status
         string sanitized_payload
         uuid canonical_action_artifact_id
         string canonical_action_sha256
     }
+    TOOL_RESULTS {
+        uuid tool_result_id PK
+        uuid action_id FK
+        bool ok
+        string payload_schema_id "nullable"
+        int payload_schema_version "nullable"
+        string payload_json "nullable"
+        string error_code "nullable"
+        string sanitized_message "nullable"
+    }
     TEST_RUNS {
-        uuid test_run_id PK
+        uuid run_id PK
         uuid task_id FK
-        string run_kind
-        string command_hash
-        string source_state_hash
-        int exit_code
-        string parse_status
-        bool truncated
+        string phase
+        string outcome
+        string command_json
+        string base_commit
+        string config_sha256
+        string environment_sha256
+        string workspace_before_sha256
+        string workspace_after_sha256
+        datetime started_at
+        datetime finished_at
         int duration_ms
-        string sanitized_summary
+        int exit_code "nullable"
+        uuid sanitized_output_artifact_id FK
+        uuid parsed_result_artifact_id FK "nullable"
     }
     FEEDBACK_STATES {
         uuid feedback_id PK
@@ -680,13 +1074,17 @@ erDiagram
     ARTIFACT_REFS {
         uuid artifact_id PK
         uuid task_id FK
-        string kind
-        string relative_storage_path
+        string schema_id
+        int schema_version
+        string media_type
+        int byte_length
         string sha256
-        int byte_size
+        string relative_storage_path
         string sensitivity
     }
 ```
+
+ER 图描述关系存储映射，不重复定义领域模型。`TASKS.status` 和 `ACTIONS.status` 保存对应枚举 `.value`。`command_json` 是 FrozenCommand 的可逆 JSON 存储表示，不声称使用 Task 8 尚未冻结的 canonical hash 算法。TestRun 的 ArtifactRef 通过 artifact FK 重建；`exit_code` 与 `parsed_result_artifact_id` 可空。`ARTIFACT_REFS` 是 artifact manifest row：包含领域 ArtifactRef 七字段，并可额外保存 `relative_storage_path`、`sensitivity` 等基础设施元数据。`action_id`、`tool_result_id`、`feedback_id`、`approval_id`、`patch_id` 等是基础设施 ID，不要求 Task 2 新增具名包装模型。TOOL_RESULTS 的 payload Schema/JSON 字段只保存经具体 ToolPayload Schema 验证和脱敏的可逆表示；其可空性遵循 ToolResult 成功／失败矩阵。
 
 SQLite 至少包含 `tasks`、`actions`、`tool_results`、`test_runs`、`feedback_states`、`approvals`、`memories`、`audit_events`、`patch_attempts`、`patch_files`、`artifact_refs` 和 `schema_migrations`。
 
@@ -698,7 +1096,7 @@ SQLite 保存结构化元数据、相对工件引用、大小和 SHA-256。精�
 
 - POSIX 目录使用 `0700`、文件使用 `0600`；Windows 使用当前用户专属 ACL；
 - 数据库只保存相对路径；解析后必须仍位于受管根目录且不是符号链接；
-- 使用工件前重新校验 kind、大小和 SHA-256；
+- 使用工件前重新校验 `schema_id`、`schema_version`、`media_type`、`byte_length` 和 SHA-256；
 - Harness 自身加载的供应商凭据绝不写入工件；
 - pre-image 和精确 diff 可能含目标仓库原有敏感内容，统一视为高敏感工件；
 - 报告、UI、日志和 LLM 不直接展示高敏感工件，只使用脱敏视图；
@@ -797,6 +1195,11 @@ Key 不得写入配置、记忆、日志、异常、SQLite、工件、测试快�
 worktree 只隔离 Git 修改，不能阻止 pytest 读取当前用户可访问文件或访问网络。首版只运行用户主动确认可信的仓库，不宣称完整沙箱。信任确认不得默认勾选，并绑定 `repo_path`、`base_commit`、`test_command_hash`、`config_hash`、`threat_notice_version` 和时间；任一关键项变化后重新确认。非交互模式必须显式传入 `--trust-repo`。
 
 pytest 使用固定 worktree cwd、`shell=False`、经验证的解释器、环境允许列表、超时、输出限制和完整进程树终止，不以管理员权限运行。Docker 测试沙箱是后续扩展。
+任务的安装、导入、测试和构建命令必须绑定到受信任务 worktree、明确 cwd 和经验证的任务解释器；不得依赖激活状态、裸 executable 名、PATH 或别名选择解释器。验证记录必须能证明 cwd、`sys.executable` 和 Python 版本与冻结任务环境一致。
+
+环境准备的网络访问只允许人工批准的 PyPI 分发端点，并且只用于经审核的直接依赖和声明的 build-system requirements。Web 搜索、真实 LLM／业务 API、Git 网络、额外 index、VCS/URL/外部路径依赖及未经审核的新依赖不属于环境准备权限；需要不同来源或网络失败时必须停止并请求人工决定。
+
+包安装验证不得通过测试配置修改 `sys.path`、`PYTHONPATH`、`sitecustomize`、`.pth` 或手工模块加载来暴露 `src`；import 必须来自已验证的安装映射。Console entry point 只有在目标模块已经存在且真实调用测试同时覆盖时才能声明或发布，不能提前指向未来 Task 的模块。
 
 ### 14.4 本地 WebUI
 
@@ -845,6 +1248,7 @@ Docker 固定 demo mode、非 root、内置只读模板、Scripted Mock、小预
 
 - **NFR-014** 本地发行必须可由 PyPI/pipx 安装，公网演示必须由固定 demo mode 的非 root OCI 镜像运行。
 - **NFR-015** GitLab CI 与 GitHub Actions 必须复用同一一键测试和构建入口，并产生可审查的通过记录。
+- **NFR-016** 直接依赖的兼容 minor 范围属于早期构建契约；锁文件、哈希固定的可复现安装和依赖更新策略由分发任务统一定义，不由 Task 1 临时生成。
 
 ## 16. 错误处理
 

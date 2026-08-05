@@ -14,9 +14,9 @@
 
 - Do not use an existing Agent runner, Agent SDK loop, LangChain `AgentExecutor`, AutoGen, CrewAI, or LlamaIndex Agent.
 - Core mechanisms must run offline with `ScriptedMockLLM`; tests must not require network access or real credentials.
-- Python support is 3.11 and 3.12. Before the cold-start implementation attempt, create `.venv` with either version (`python -m venv .venv`), activate it (`.venv\Scripts\Activate.ps1` on PowerShell or `source .venv/bin/activate` on POSIX), then run `python -m pip install --upgrade pip pytest`. After Task 1 creates `pyproject.toml`, run `python -m pip install -e ".[dev]"` before its green tests.
+- Python support is 3.11 and 3.12. Formal development worktrees must bind commands to a verified supported interpreter. The cold-start audit additionally follows its frozen official worktree, explicit `.venv` executable, cwd and PyPI-network rules below; those concrete commands override generic examples and never rely on activation or bare `python`.
 - Python commands are the cross-platform normative entry points. Makefile targets are convenience wrappers for POSIX/CI and must never be required to complete a Task on Windows.
-- TDD is mandatory for every Task: write the named failing test, run and observe the stated failure, add the minimum implementation, rerun, refactor, rerun the Task tests and `python -m pytest -q`.
+- TDD is mandatory for every formal implementation Task: write and observe the named Red, add minimum implementation, rerun and refactor. During the frozen cold-start audit, use the explicitly separated Task 1 focused verification and Task 2 expected Red; repository-wide pytest is not required green until authorized Task 2 Green exists.
 - LLM-requested side effects require strict Action validation and Policy. Internal side effects require a legal Application/Core state transition and FrozenConfig.
 - Tests and pytest configuration are immutable. Paths are worktree-relative, normalized, and symlink paths are rejected.
 - Never use `shell=True`; subprocesses receive argument arrays, a cleaned allowlisted environment, bounded output, and process-tree termination.
@@ -28,7 +28,7 @@
 ## Planned Repository Structure
 
 ```text
-pyproject.toml                    package metadata, dependencies, CLI entry point, pytest config
+pyproject.toml                    package metadata, dependencies and pytest config; CLI entry point added in Task 16
 Makefile                          one-command test/build/demo targets
 src/coding_agent_harness/
   domain/                         immutable enums, IDs, Actions, results, feedback, approvals
@@ -109,52 +109,116 @@ flowchart LR
 **Purpose:** Validate that `SPEC.md` and this plan are executable without hidden conversational context.
 
 **Files:**
-- Create during the validation session only: `SPEC_PROCESS.md`
-- May modify after findings: `SPEC.md`, `PLAN.md`
-- Do not merge cold-start implementation artifacts until the plan defects are resolved.
 
-- [ ] Commit the reviewed `PLAN.md` on the planning branch; record its commit hash beside the SPEC baseline.
-- [ ] Start a new session with a different agent product/type from the primary planning agent. Disable imported memory and provide only `SPEC.md` and `PLAN.md`.
-- [ ] In an isolated disposable worktree, ask it to execute Task 1 and begin Task 2. Instruct: “Stop and ask on uncertainty; do not infer missing paths, signatures, or commands.”
-- [ ] Record every question, mistaken interpretation, unexpected file choice, red/green command mismatch, and output difference in `SPEC_PROCESS.md`.
-- [ ] Compare its Task 1/2 artifacts against the plan. Do not let the main implementation proceed during this audit.
-- [ ] Patch SPEC/PLAN ambiguities, show before/after diffs in `SPEC_PROCESS.md`, discard or separately preserve the disposable implementation, and obtain human approval of the revised plan.
+- Create during the validation session only: `SPEC_PROCESS.md`.
+- May modify after findings: main-repository `SPEC.md`, `PLAN.md`.
+- Do not merge or copy cold-start implementation artifacts until all findings are resolved.
 
-**Gate completion:** A different agent can execute Task 1 and understand Task 2 using only the two documents, or every discovered ambiguity has been explicitly repaired and reviewed.
+**Current gate status: NOT PASSED — formal implementation remains frozen.** Task 1 focused success or Task 2 expected Red validates only its own layer and must not be reported as completion of the overall gate.
 
+**Official validation binding:**
+
+| Item | Frozen value / rule |
+|---|---|
+| Disposable worktree | `D:\000liuxinyu\001study\coding-agent-harness-cold-start-wt` |
+| Branch | `cold-start/validation` |
+| Repeatable command cwd | Exactly the disposable worktree root above |
+| Other worktrees | The accidental outer worktree does not participate; do not create, delete, switch to, or clean any worktree |
+| Source transfer | Do not copy disposable implementation into the main repository |
+
+**Interpreter and command binding:**
+
+- Create `.venv` with an explicitly selected Python 3.11 or 3.12 executable/launcher and record the complete command. A bare `python -m venv` is insufficient unless that executable was explicitly recorded and verified.
+- After creation, every install, import, pytest and build command must directly invoke `.\.venv\Scripts\python.exe`; do not rely on activation state, bare `python`, PATH resolution or aliases.
+- Before installation or testing, record the exact cwd plus output of `.\.venv\Scripts\python.exe -c "import os, sys; print(os.getcwd()); print(sys.executable); print(sys.version)"`. `sys.executable` must be inside the official worktree `.venv` and the version must be 3.11 or 3.12.
+- Every repeatable Task 1/Task 2 command below inherits the official cwd and interpreter binding unless a step explicitly says it is only historical evidence.
+
+**Dependency-installation network boundary:**
+
+- Environment preparation may contact only `https://pypi.org/` and `https://files.pythonhosted.org/`, solely for human-reviewed direct dependencies and the declared build-system requirements.
+- Prohibited: Web search; real LLM/model or business API calls; Git network operations; extra indexes; VCS, URL or external-path dependencies; and unreviewed new dependencies.
+- A network failure, different source, extra index or new dependency must stop the validation and ask for human direction. Do not silently substitute a mirror or cached external source.
+- Each installation record must include index/hosts contacted and whether cache was used.
+
+**Validation procedure:**
+
+- [ ] Use a different agent product/type with imported memory disabled and only SPEC/PLAN as requirement sources.
+- [ ] Execute Task 1 and prepare Task 2 Red only in the official disposable worktree; stop on missing paths, signatures, versions or commands.
+- [ ] Record every cwd, executable, Python version, complete command, exit code, test count, build artifact name, network index/host and cache status in `SPEC_PROCESS.md`.
+- [ ] Record questions, mistaken interpretations, unexpected files, red/green mismatches and output differences.
+- [ ] Compare Task 1/2 artifacts against the reviewed documents; do not start formal implementation.
+- [ ] Obtain explicit human approval after every ambiguity and retained blocker is repaired.
+
+**Remaining blockers:**
+
+- [ ] Revalidate Task 1 after its Red tests and conftest/entry-point defects are repaired under separate authorization.
+- [ ] Obtain human approval for every direct dependency compatibility range.
+- [ ] Update disposable `SPEC_PROCESS.md` and evidence only in a separately authorized phase.
+
+**Gate completion:** The reviewed Task 1 focused layer passes, Task 2 produces its reviewed expected Red without entering Green, all execution evidence is complete, every ambiguity is repaired, and the human reviewer explicitly marks the gate passed.
 ---
 
 ### Task 1: Package Skeleton and One-Command Test Gate
 
-**Goal / requirements:** Establish an installable `src` package, deterministic test entry point, dependency groups, and CI-neutral commands. Covers NFR-014, NFR-015; supports AC-011, AC-012.
+**Goal / requirements:** Establish an installable `src` package, deterministic focused verification, reviewed dependency groups and CI-neutral commands. Covers NFR-014, NFR-015; supports AC-011, AC-012.
 
-**Dependencies:** Cold-Start Validation Gate complete.
+**Dependencies:** Cold-Start Validation Gate complete for formal implementation. During cold-start audit, only the explicitly authorized Task 1 Red/focused evidence may run; Task 2 Green remains frozen.
 
 **Files:**
+
 - Create: `pyproject.toml`
 - Create: `Makefile`
 - Create: `src/coding_agent_harness/__init__.py`
 - Create: `tests/unit/test_package_smoke.py`
 - Create: `tests/unit/test_repository_hygiene.py`
-- Create: `tests/conftest.py`
 - Create: `.gitignore`
 - Create: `AGENT_LOG.md`
 
+`tests/conftest.py` is not a Task 1 file. Task 1 tests and configuration must not expose `src` through `sys.path`, `PYTHONPATH`, `sitecustomize`, `.pth` injection or manual module loading. Package import after Green must depend on the editable installation.
+
 **Interfaces:**
+
 - Produces package `coding_agent_harness` with `__version__: str`.
-- Produces normative commands `python -m pytest -q` and `python -m build`; `make test`/`make build` are optional convenience wrappers.
+- Produces normative logical commands `python -m pytest -q` and `python -m build`; within this cold-start validation their concrete executable is always `.\.venv\Scripts\python.exe`.
+- Makefile targets remain optional POSIX/CI convenience wrappers and do not override the cold-start interpreter binding.
+- Task 1 must not declare `[project.scripts]`; Task 16 adds and invokes the console entry point only when its target module exists.
 
-- [ ] **Environment:** Create/activate `.venv` using the Global Constraints commands and install only upgraded pip plus pytest. Do not install the package before observing the red tests.
-- [ ] **Red 1:** Create `tests/unit/test_package_smoke.py` with `test_package_exposes_version_string`, `test_running_interpreter_is_supported`, and `test_requires_python_metadata_is_311_to_before_313`. The metadata test must parse `pyproject.toml` and assert `requires-python` is exactly compatible with `>=3.11,<3.13`, rather than inferring support from the current interpreter.
-- [ ] Run `python -m pytest tests/unit/test_package_smoke.py -q`. **Expected:** collection fails with `ModuleNotFoundError: No module named 'coding_agent_harness'` because the package and metadata do not exist.
-- [ ] **Red 2:** Create `tests/unit/test_repository_hygiene.py::test_gitignore_blocks_credentials_and_runtime_artifacts`, asserting `.env*`, private-key patterns, local DB/task artifacts, build output and Python caches are ignored.
-- [ ] Run `python -m pytest tests/unit/test_repository_hygiene.py -q`. **Expected:** one assertion failure because `.gitignore` is absent; this command is separate so the package collection error cannot hide it.
-- [ ] **Green:** Add `pyproject.toml` using setuptools `src` discovery, Python `>=3.11,<3.13`, runtime dependencies (`pydantic`, `typer`, `fastapi`, `uvicorn`, `jinja2`, `openai`, `keyring`, `platformdirs`) and dev dependencies (`pytest`, `pytest-cov`, `httpx`, `build`). Add the package and `__version__ = "0.1.0"`.
-- [ ] Add `Makefile` convenience targets: `test` → `python -m pytest -q`; `build` → `python -m build`. Add `.gitignore` safety patterns and initialize `AGENT_LOG.md`; do not add Agent behavior.
-- [ ] Run `python -m pip install -e ".[dev]"`, then `python -m pytest tests/unit/test_package_smoke.py tests/unit/test_repository_hygiene.py -q`. **Expected:** installation succeeds and all four tests pass.
-- [ ] **Refactor/verify:** Run `python -m pytest -q` and `python -m build`. **Expected:** all tests pass; wheel and sdist are created under `dist/` without import errors.
+**Direct dependency compatibility ranges — approved for Task 1 validation:**
 
-**Completion:** Editable/package import works on Python 3.11/3.12, one-command tests work, and no Agent behavior exists yet.
+| Group | Direct dependency | Current disposable constraint | Status before Green |
+|---|---|---|---|
+| build-system | `setuptools` | `>=68,<69` | Approved from existing 68.x baseline; persistent installed metadata absent |
+| runtime | `pydantic` | `>=2.13.4,<2.14` | Approved current minor series |
+| runtime | `typer` | `>=0.27.1,<0.28` | Approved current minor series |
+| runtime | `fastapi` | `>=0.141.1,<0.142` | Approved current minor series |
+| runtime | `uvicorn` | `>=0.52.1,<0.53` | Approved current minor series |
+| runtime | `jinja2` | `>=3.1.6,<3.2` | Approved current minor series |
+| runtime | `openai` | `>=2.53.0,<2.54` | Approved current minor series |
+| runtime | `keyring` | `>=25.7.0,<25.8` | Approved current minor series |
+| runtime | `platformdirs` | `>=4.11.0,<4.12` | Approved current minor series |
+| dev | `pytest` | `>=9.1.1,<9.2` | Approved current minor series |
+| dev | `pytest-cov` | `>=7.1.0,<7.2` | Approved current minor series |
+| dev | `httpx` | `>=0.28.1,<0.29` | Approved current minor series |
+| dev | `build` | `>=1.5.0,<1.6` | Approved current minor series |
+
+These compatible minor-series ranges are not exact locks. Lock files, hash-pinned reproducible installation and dependency update policy belong to Task 18; Task 1 must not create an ad-hoc lock file.
+
+- [ ] **Environment binding:** From the official cwd, create `.venv` with an explicitly recorded Python 3.11/3.12 executable or launcher. Thereafter use only `.\.venv\Scripts\python.exe`; record cwd, `sys.executable` and `sys.version` before install/test.
+- [ ] **Red 1:** Create the three package smoke tests. `test_requires_python_metadata_is_311_to_before_313` must use `tomllib` to parse `pyproject.toml` in binary mode and assert exactly `document["project"]["requires-python"] == ">=3.11,<3.13"`;全文 substring 搜索不构成 TOML 语义验证。
+- [ ] Run `.\.venv\Scripts\python.exe -m pytest tests/unit/test_package_smoke.py -q`. **Expected initial Red:** import collection failure before package creation/install.
+- [ ] **Red 2:** Parse `.gitignore` into the exact set of stripped, nonempty, non-comment lines. Assert at least `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa`, `id_rsa.pub`, `id_ed25519`, `id_ed25519.pub`, `*.db`, `*.sqlite`, `*.sqlite3`, `.harness/`, `harness-data/`, `dist/`, `build/`, `*.egg-info/`, `__pycache__/`, `*.py[cod]`, `.pytest_cache/`, `.coverage`, `htmlcov/`, `.venv/`, and `venv/`. Whole-file substring matches are forbidden.
+- [ ] Run `.\.venv\Scripts\python.exe -m pytest tests/unit/test_repository_hygiene.py -q`. **Expected initial Red:** one missing-`.gitignore` assertion, independent of package collection.
+- [ ] **Green preparation:** Using the approved ranges above, add setuptools `src` discovery, Python `>=3.11,<3.13`, reviewed runtime/dev/build-system ranges, package `__version__ = "0.1.0"`, Makefile wrappers, exact `.gitignore` rules and `AGENT_LOG.md`. Do not add Agent behavior, conftest import injection or project scripts.
+- [ ] **Editable install:** Run `.\.venv\Scripts\python.exe -m pip install -e ".[dev]"` under the approved PyPI boundary; record command, exit code, index/hosts and cache status.
+- [ ] **Task 1 focused verification:** Run `.\.venv\Scripts\python.exe -m pytest tests/unit/test_package_smoke.py tests/unit/test_repository_hygiene.py -q`. **Expected:** all four tests pass; record test count and exit code.
+- [ ] **Import outside pytest:** Run `.\.venv\Scripts\python.exe -c "import coding_agent_harness; print(coding_agent_harness.__file__)"` from the official cwd outside pytest/conftest. The path must resolve through the editable installation to this worktree.
+- [ ] **Build verification:** Run `.\.venv\Scripts\python.exe -m build`; record exit code, wheel/sdist names, network hosts and cache use. Inspect wheel/sdist contents and verify import from the built artifact in an isolated verification environment using the same approved interpreter/network rules.
+- [ ] **Task 2 expected Red verification:** Separately run `.\.venv\Scripts\python.exe -m pytest tests/unit/domain -q` only after its reviewed Red tests are authorized. Expected domain collection/assertion failures are Task 2 evidence, not Task 1 failure.
+- [ ] Do not require the repository-wide pytest command to be green while Task 2 intentionally remains Red, and never implement Task 2 Green merely to make the full suite green.
+
+**Completion evidence:** Record cwd, exact executable, Python version, full command, exit code, test count, wheel/sdist names, network index/hosts and cache usage for every applicable step. Focused tests, import and build must actually complete before writing “Green confirmed.” Task 2 expected Red remains separately labelled.
+
+**Completion:** Editable import, both focused files, out-of-pytest import, wheel/sdist content and built-artifact import are verified on Python 3.11/3.12; no Agent behavior or premature console script exists.
 
 **Suggested commit:** `chore: scaffold python package and test gate`
 
@@ -162,11 +226,12 @@ flowchart LR
 
 ### Task 2: Immutable Domain Models and Strict Action Schema
 
-**Goal / requirements:** Define the stable vocabulary used by every later Task and reject unknown/extra/invalid LLM actions, including `finish`. Covers FR-008, FR-011; SEC-001, SEC-002; supports AC-001, AC-002.
+**Goal / requirements:** Implement exactly the closed vocabulary and field contracts in SPEC §9.1–§9.2 and §11.1–§11.6. Reject unknown, extra or invalid LLM Actions including `finish`. Do not infer fields, defaults, normalization, payload shapes, transitions or canonical serialization details. Covers FR-008, FR-011; SEC-001, SEC-002; supports AC-001, AC-002.
 
-**Dependencies:** Task 1.
+**Dependencies:** Task 1 and explicit completion of the Cold-Start Validation Gate. Task 2 remains frozen while that gate is not passed.
 
 **Files:**
+
 - Create: `src/coding_agent_harness/domain/enums.py`
 - Create: `src/coding_agent_harness/domain/models.py`
 - Create: `src/coding_agent_harness/domain/actions.py`
@@ -175,20 +240,41 @@ flowchart LR
 - Create: `tests/unit/domain/test_actions.py`
 - Create: `tests/unit/domain/test_models.py`
 
-**Interfaces:**
-- Produces `TaskStatus`, `ActionStatus`, `ApprovalStatus`, `FeedbackKind`, `PolicyOutcome`, `ToolErrorCode` enums.
-- Produces frozen Pydantic models `TaskId`, `ValidatedAction`, `ToolResult`, `ProtocolError`, `TestRun`, `FeedbackDecision`, `FrozenCommand`.
-- Produces discriminated actions: `ListFilesAction`, `ReadFileAction`, `SearchCodeAction`, `ApplyPatchAction`, `RunTestsAction`, `GitDiffAction`, `GitStatusAction`, `RunDiagnosticAction`, `RequestHumanAction`.
-- Produces `parse_action(raw: str | dict[str, object]) -> ValidatedAction | ProtocolError`.
+**Authoritative interfaces and coverage:**
 
-- [ ] **Red:** In `test_actions.py`, add `test_parse_known_action`, `test_rejects_extra_fields`, `test_rejects_finish_as_unknown_action`, `test_rejects_shell_string_for_diagnostic`, and `test_request_human_requires_reason`. In `test_models.py`, assert models are immutable and approval enum contains `pending/approved/consumed/executed/denied/cancelled/expired`.
-- [ ] Run `python -m pytest tests/unit/domain -q`. **Expected:** collection fails because `coding_agent_harness.domain.actions` and enums do not exist.
-- [ ] **Green:** Implement enums and strict Pydantic models with `extra="forbid"`, discriminated `type`, bounded reason/query/path strings, argument arrays, and no `FinishAction`.
-- [ ] Implement `parse_action` so JSON/schema errors map to stable `ProtocolError(code, sanitized_message)` rather than escaping supplier text.
-- [ ] Run `python -m pytest tests/unit/domain -q`. **Expected:** all named tests pass.
-- [ ] **Refactor/verify:** Consolidate shared immutable config without weakening schemas; run `python -m pytest tests/unit/domain -q` then `python -m pytest -q`. **Expected:** all pass.
+- SPEC §9.1.1: Action inheritance, strict parser, six-level classification and six code/message rows.
+- SPEC §9.1.2: common path table.
+- SPEC §9.1.3: nine Action field tables and all cross-field matrices, including focused node-id grammar.
+- SPEC §9.2: FrozenCommand field and argv constraints.
+- SPEC §11.1: TaskId and ArtifactRef field/input/loading tables.
+- SPEC §11.2: ToolPayload, four-field ToolResult matrix, ToolErrorCode and safe-message contract.
+- SPEC §11.3: TestRun field table, TestPhase table and nine-row outcome matrix.
+- SPEC §11.4: FeedbackDecision field table and eight-row history/fingerprint matrix.
+- SPEC §11.5: exact 24-value TaskStatus, 10-value ActionStatus, 3-value PolicyOutcome and 7-value ApprovalStatus tables plus ownership table.
+- SPEC §11.6: canonical JSON algorithm remains a Task 8 contract; Task 2 must not invent it.
 
-**Completion:** Later Tasks can import one canonical set of immutable types; unknown actions and extra fields are deterministic protocol errors.
+- [ ] **Red — base schema:** Verify abstract/non-instantiable `ValidatedAction` and ToolPayload; freezing; `extra="forbid"`; all required/default rules; no FinishAction; no aliases; exact enum `.value` input/output.
+- [ ] **Red — parser:** Verify strict JSON trailing content, duplicate keys, NaN/Infinity, every non-object top level, runtime signature-external types, direct-dict non-mutation and defensive nested conversion.
+- [ ] Verify all six ProtocolErrorCode rows, exact fixed messages and classification priority; assert no raw/Pydantic details and no dependency on Pydantic error text/location.
+- [ ] **Red — Action fields:** Verify every allowed field set and every forbidden extra field for all nine Actions.
+- [ ] Verify common path: required/no default, `.`, length, empty/NUL/obvious absolute rejection, and deferral of normalization/drive/UNC/`..`/symlink checks.
+- [ ] Verify ListFiles StrictBool and forbidden controls; ReadFile paired lines, inclusive range and strict-int rejections.
+- [ ] Verify SearchCode literal query, whitespace/control bounds, required StrictBool and absent regex/glob/output controls.
+- [ ] Verify ApplyPatch empty/control/LF-ending/strict-UTF-8/surrogate/byte boundaries, exact preservation and no header/hunk parsing.
+- [ ] Verify RunTests full/focused matrix; target count/length/aggregate UTF-8; duplicate/order; PATH/selector/PARAM_ID grammar and negative structures; single-argv semantics.
+- [ ] Verify GitDiff/GitStatus type-only schemas; RunDiagnostic ID/arguments, empty args, aggregate bytes and forbidden execution fields; RequestHuman reason Unicode/control/trim rules and forbidden fields.
+- [ ] **Red — value objects:** Verify canonical RFC 4122 UUIDv4 TaskId, all rejected UUID representations and JSON output; seven ArtifactRef fields, regex/ranges and forbidden storage fields.
+- [ ] Verify FrozenCommand exact two prefixes, argv array→tuple, bounds, strict UTF-8, forbidden executable/forms and excluded execution-context fields.
+- [ ] **Red — result models:** Define a minimal test-only concrete ToolPayload; verify four required ToolResult fields and every success/failure matrix cell; verify all ten ToolErrorCode values and safe-message bounds.
+- [ ] Verify every TestRun field; six TestPhase values; all nine outcome/exit/ref/hash rows; UTC zero-offset and Z serialization; artifact ownership/schema/media constraints.
+- [ ] Verify all six FeedbackDecision fields; eight FeedbackKind rows; previous/matched/fingerprint matrix; unreliable-run history exclusion; passed marker and loop equality.
+- [ ] Verify TaskStatus exactly 24 values, ActionStatus exactly 10, PolicyOutcome exactly 3 and ApprovalStatus exactly 7; verify `@unique`, exact string input, no trim/case conversion, no aliases and no order-dependent behavior.
+- [ ] Run `python -m pytest tests/unit/domain -q`. **Expected Red in a fresh main implementation:** missing domain imports. **Expected Red in the disposable validation worktree after authorized test repair:** deterministic assertion failures against incomplete/wrong contracts; collection failure is not the only acceptable evidence.
+- [ ] **Green (frozen until gate approval):** Implement only SPEC-defined enums and strict models. Convert all parser/Pydantic exceptions to ProtocolError and preserve exact protocol strings. Do not define real tool payloads, ArtifactStore, process execution, state transitions or canonical JSON algorithm.
+- [ ] Run focused tests then full suite only after Green is separately authorized.
+- [ ] **Refactor/verify:** consolidate only identical validators without weakening field-specific contracts; rerun focused/full suites.
+
+**Completion:** Every Task 2 type, field, enum value and matrix row is covered by deterministic tests. Task 2 completion alone does not complete the Cold-Start Validation Gate.
 
 **Suggested commit:** `feat: define domain models and strict action schema`
 
@@ -214,7 +300,7 @@ flowchart LR
 
 **Interfaces:**
 - Produces typing `Protocol`s: `LLMClient.generate(context)`, `StateStore`, `WorkspacePort`, `FileSystemPort`, `TestRunner.run(request)`, `CredentialStore`, `ArtifactStore`.
-- Produces reusable deterministic fakes and contract assertions for later adapters.
+- Produces reusable deterministic fakes and contract assertions for later adapters; port signatures use Task 2 `TaskStatus`, `ActionStatus`, `ArtifactRef`, and typed `ToolResult[PayloadT]` with Task 2 `PayloadT = TypeVar("PayloadT", bound=ToolPayload)`, never untyped payload dicts.
 
 - [ ] **Red:** Add contract tests that instantiate named fake ports, record calls, return domain models, and fail static/runtime protocol checks when required methods are absent. Add `test_core_layer_does_not_import_adapters` scanning future `src/coding_agent_harness/core` imports.
 - [ ] Run `python -m pytest tests/contract/test_port_contracts.py -q`. **Expected:** import failure for missing port modules.
@@ -255,7 +341,7 @@ flowchart LR
 - [ ] **Green:** Implement strict Pydantic TOML models and pure merge functions. Keep absolute hard limits (600 seconds, 20 files, 2,000 lines, 1 MiB) in `defaults.py`, never as user-overridable fields.
 - [ ] Implement real/demo CapabilitySets; demo excludes OpenAI, credentials, arbitrary paths and commands. Include per-field provenance and canonical SHA-256.
 - [ ] Run focused tests. **Expected:** all pass, including property-style assertions that a lower layer never broadens capability.
-- [ ] **Refactor/verify:** Isolate canonical serialization, run config tests and full suite.
+- [ ] **Refactor/verify:** Isolate configuration-specific deterministic serialization and FrozenConfig hashing; this does not define Task 8 unified Action/approval canonical JSON. Run config tests and full suite.
 
 **Completion:** Effective configuration is deterministic, frozen, traceable, and can only narrow safety boundaries.
 
@@ -282,10 +368,10 @@ flowchart LR
 
 **Interfaces:**
 - Implements `StateStore` and `ArtifactStore` from Task 3.
-- Persists tables required by SPEC §11, including trust binding fields and canonical Action/diff/pre-image references.
+- Persists tables required by SPEC §11, including TaskStatus/ActionStatus, the complete TestRun fields, trust bindings and canonical Action/diff/pre-image ArtifactRefs. It stores intent logs and checks CAS preconditions but never derives a business target status.
 
 - [ ] **Red:** Add migration tests asserting every required table, FK, unique task sequence and schema version. Add state tests for legal compare-and-set, illegal transition rejection, one active task/lease, intent `executing → interrupted/unknown_outcome`, and no automatic retry.
-- [ ] Add approval tests for `pending → approved → consumed → executed`, explicit Resume before consume, a second consume failing, and crash after consume leaving approval consumed while Action becomes `unknown_outcome`.
+- [ ] Add approval tests for `pending → approved → consumed → executed`, explicit Resume before consume, and second-consume failure. Assert approval consumed, Action EXECUTING and execution intent commit in one SQLite transaction with no recoverable consumed + READY window; only after commit may external side effects start. Crash after commit leaves approval consumed while Action becomes unknown_outcome.
 - [ ] Add artifact tests for relative-only paths, symlink/escape rejection, SHA-256/size verification, `0700/0600` on POSIX or current-user ACL assertion on Windows, and no raw output in SQLite.
 - [ ] Run `python -m pytest tests/integration/sqlite tests/integration/artifacts -q`. **Expected:** missing adapter/schema import failures.
 - [ ] **Green:** Implement numbered migrations, FK enforcement, transactions/WAL, repository mappings, CAS transitions, leases, approval operations, and artifact manifests. StateStore persists decisions but never evaluates Policy validity.
@@ -315,7 +401,7 @@ flowchart LR
 - Test: `tests/integration/tools/test_diagnostic_tools.py`
 - Test: `tests/unit/core/test_tool_dispatcher.py`
 
-**Interfaces:** Implements `FileSystemPort`; produces `PathFacts`, `normalize_relative_path`, and `TypedToolDispatcher.dispatch(action, capabilities) -> ToolResult` for already-authorized actions.
+**Interfaces:** Implements `FileSystemPort`; produces `PathFacts`, `normalize_relative_path`, and each tool defines its own concrete frozen `ToolPayload` subclass; after all concrete payloads exist, Task 6 defines a closed `ToolPayloadUnion` and `TypedToolDispatcher.dispatch(action, capabilities) -> ToolResult[ToolPayloadUnion]` for already-authorized actions.
 
 - [ ] **Red:** Test absolute paths, drive letters, `..`, NUL, symlink components, app-data paths, `.env` variants, private keys and unsupported binary reads; assert zero file access only for these forbidden reads.
 - [ ] Test that protected test assets such as `tests/test_example.py`, `test_example.py`, `example_test.py` and `conftest.py` remain readable/searchable through `read_file`/`search_code`; immutability is enforced only for create/modify/move/delete operations in Patch/Policy.
@@ -350,7 +436,7 @@ flowchart LR
 - Create: `tests/fixtures/patches/protected_test.diff`
 - Create: `tests/fixtures/patches/invalid_fuzz.diff`
 
-**Interfaces:** Produces immutable `PreparedPatch`, `PatchFacts`, `PatchFilePlan`, `AppliedPatch`, `ApplyFailure`, `RollbackResult`; `prepare(diff, snapshot)` is pure and `apply(prepared, authorization)` owns writes/compensation.
+**Interfaces:** Produces immutable, strict `PreparedPatch`, `PatchFacts`, `PatchFilePlan`, `AppliedPatch`, `ApplyFailure`, and `RollbackResult`; `prepare(diff, snapshot)` is pure and `apply(prepared, authorization)` owns writes/compensation. Task 7 only returns Patch execution/compensation results; it neither owns nor performs `ActionStatus` transitions. Task 13 maps these results.
 
 - [ ] **Red:** Test exact UTF-8 modify/create/delete, multi-file facts, operation types, file/line counts, sensitive/test-asset flags and normalized hash. A syntactically valid Patch targeting `tests/test_example.py` must prepare successfully with `PatchFacts.touches_test_assets=True` and no write.
 - [ ] Test protocol-level rejection for binary diff, symlink, absolute/drive/`..`, hunk mismatch, offset/fuzz, mode change and complex rename. Assert no filesystem write after every `prepare` result.
@@ -381,7 +467,7 @@ flowchart LR
 - Test: `tests/unit/security/test_approval_binding.py`
 - Test: `tests/unit/security/test_trust_binding.py`
 
-**Interfaces:** Produces pure `PolicyEngine.evaluate(action, facts, config, approval) -> PolicyDecision`, `ApprovalBinding`, `TrustBinding` and canonical validation results.
+**Interfaces:** Produces pure `PolicyEngine.evaluate(action, facts, config, approval) -> PolicyDecision`, `ApprovalBinding`, `TrustBinding` and canonical validation results. Before implementation, freeze and test the exact canonical JSON byte algorithm required by SPEC §11.6; Task 2 has not defined it.
 
 - [ ] **Red:** Feed Policy a successfully prepared `PatchFacts(touches_test_assets=True)` and assert hard deny with a stable test-protection reason, no approval option and no apply call. Also hard-deny protected config, path/symlink/binary/Shell/capability violations and demo escape; approval cannot override deny.
 - [ ] Test approval for >5 files, >300 lines, source delete, sensitive path and dependency/build config; hard deny >20 files, >2,000 lines or >1 MiB.
@@ -416,7 +502,7 @@ flowchart LR
 - Create: `tests/fixtures/subprocess_projects/timeout_tree/spawn_child.py`
 - Create: `tests/fixtures/subprocess_projects/timeout_tree/test_timeout.py`
 
-**Interfaces:** Implements `TestRunner.run(TestRequest) -> TestExecution`; `TestExecution` owns a transient in-memory `BoundedRawOutput`. Produces persistable `SanitizedTestOutput` and recursive `redact_fields`; the pytest parser in Task 10 consumes bounded raw output before field-level redaction of its structured result.
+**Interfaces:** Implements `TestRunner.run(TestRequest) -> TestExecution`; `TestExecution` owns a transient in-memory `BoundedRawOutput`. Produces `SanitizedTestOutput` as safe artifact content (TestRun stores only the SPEC §11.3 `ArtifactRef`) and recursive `redact_fields`; the pytest parser in Task 10 consumes bounded raw output before field-level redaction of its structured result.
 
 - [ ] **Red:** Accept only `pytest` and `python -m pytest`; reject changed frozen argv, shell syntax and wrong executable. Assert fixed worktree cwd and `shell=False` via spy launcher.
 - [ ] Test environment allowlist removes OpenAI/cloud/Git credentials, timeout kills a spawned child tree, capture stops at 1 MiB, keeps head/tail and sets `truncated`.
@@ -453,7 +539,7 @@ flowchart LR
 - Create: `tests/fixtures/pytest_outputs/environment_error.txt`
 - Create: `tests/fixtures/pytest_outputs/truncated.txt`
 
-**Interfaces:** Produces pure `parse_pytest(raw: BoundedRawOutput, execution) -> ParsedTestResult`, `redact_parsed_result(result) -> SanitizedParsedTestResult`, and `FeedbackEngine.analyze(previous, current, source_diff, history) -> FeedbackDecision`, with no infrastructure-port dependencies.
+**Interfaces:** Produces pure `parse_pytest(raw: BoundedRawOutput, execution) -> ParsedTestResult`, `redact_parsed_result(result) -> SanitizedParsedTestResult`, and `FeedbackEngine.analyze(previous, current, source_diff, history) -> FeedbackDecision` satisfying SPEC §11.4, with no infrastructure-port dependencies.
 
 - [ ] **Red:** Add pass, normal failure, collection/project syntax error, missing interpreter/plugin, timeout, ANSI/path/time/temp-dir, truncation and unparseable raw-output fixtures. Assert parser extracts node IDs/exception/frames from bounded raw content before redaction.
 - [ ] Test field-level redaction after parsing: absolute paths, environment text, exception strings and possible secrets are removed from `SanitizedParsedTestResult`; raw and unredacted parsed objects never reach persistence/logger/LLM fakes.
@@ -547,12 +633,12 @@ flowchart LR
 - Test: `tests/unit/core/test_state_machine.py`
 - Test: `tests/unit/core/test_harness.py`
 
-**Interfaces:** Produces `ScriptedMockLLM(actions)` with recorded inputs; `HarnessCore.step(task_id) -> CoreOutcome`; pure transition table; action and feedback budget counters.
+**Interfaces:** Produces `ScriptedMockLLM(actions)` with recorded inputs; `HarnessCore.step(task_id) -> CoreOutcome`; pure TaskStatus/ActionStatus transition tables; action and feedback budget counters. Task 13 maps Task 7 `AppliedPatch`, `ApplyFailure`, and `RollbackResult` to legal ActionStatus transitions, and defines the complete ToolErrorCode/Patch-result/TestRunOutcome → ActionStatus/TaskStatus conversion matrix.
 
 - [ ] **Red:** Test Mock returns actions in order, records exact contexts, and errors deterministically when exhausted.
 - [ ] Test invalid Schema, unknown `finish`, illegal params and Policy deny consume Action budget and feed a structured error; 40 Actions or 8 feedback rounds stops before another LLM call.
-- [ ] Test valid `request_human` enters PausedForHuman only after Action validation; confirmed loop enters Stopped; two no-progress or two changed states pause; changed does not reset no-progress.
-- [ ] Test require-approval enters AwaitingApproval; approved remains waiting; consumed unknown outcome cannot retry; read-only tool result returns to Deciding.
+- [ ] Test valid `request_human` enters TaskStatus.PAUSED_FOR_HUMAN only after validation, records ActionStatus.SUCCEEDED, and never enters the external-tool side-effect window; confirmed loop enters Stopped; two no-progress or two changed states pause; changed does not reset no-progress.
+- [ ] Test require-approval enters AwaitingApproval and approved remains waiting. Verify the complete ToolErrorCode, Patch result and TestRunOutcome mapping matrix; reliable TestRun outcomes remain successful ToolResults, consumed unknown outcome cannot retry, and read-only tool results return to Deciding.
 - [ ] Run `python -m pytest tests/unit/adapters/test_scripted_mock.py tests/unit/core/test_budget.py tests/unit/core/test_state_machine.py tests/unit/core/test_harness.py -q`. **Expected:** missing Mock/Core modules.
 - [ ] **Green:** Implement one-step loop orchestration solely over ports, explicit transition table and pre-call budget gate. Do not add automatic pytest/rollback orchestration yet.
 - [ ] Run focused tests. **Expected:** all named transitions and negative call-count assertions pass.
@@ -583,12 +669,12 @@ flowchart LR
 - Create: `tests/fixtures/repos/failing_counter/counter.py`
 - Create: `tests/fixtures/repos/failing_counter/tests/test_counter.py`
 
-**Interfaces:** Produces `ApplicationService.create_task`, `confirm_trust`, `run_baseline`, `run_until_pause`, `record_approval`, `resume`, `cancel`, `report`; Core remains the only agent loop.
+**Interfaces:** Produces `ApplicationService.create_task`, `confirm_trust`, `run_baseline`, `run_until_pause`, `record_approval`, `resume`, `cancel`, `report`; Core remains the only agent loop. Task 14 orchestrates TaskStatus lifecycle, approval consumption, TestRun workspace-drift handling and human pause, but uses Task 13 transition decisions.
 
 - [ ] **Red:** With fakes, test order: resolve base → read config from commit → freeze config/capability → show trust → confirm → create/verify worktree → baseline. Baseline pass must never call LLM or modify files; environment/unparseable pauses.
 - [ ] Test successful Patch automatically enters testing without an LLM `run_tests`, blocks a second Patch until feedback, and only current source/command/config hash pass can enter Succeeded.
 - [ ] Test regression restores only current Patch, runs `recovery_test_run` without incrementing feedback rounds, confirms previous fingerprint and feeds rollback result; conflict pauses.
-- [ ] Test approval decision is recorded; approved waits for explicit Resume; binding is revalidated, atomically consumed, then executed; crash leaves consumed + Action unknown outcome.
+- [ ] Test approval decision is recorded and approved waits for explicit Resume. Binding revalidation then commits approval consumed + Action EXECUTING + execution intent in one SQLite transaction; external side effects start only after commit, and post-commit crash leaves consumed + Action unknown outcome.
 - [ ] Run `python -m pytest tests/e2e/test_mock_repair_loop.py tests/e2e/test_regression_rollback.py tests/e2e/test_approval_resume.py -q`. **Expected:** missing ApplicationService and failures proving orchestration absent.
 - [ ] **Green:** Implement ApplicationService and report assembly using existing ports. Persist each SQLite record set transactionally while keeping filesystem/process operations outside DB transactions.
 - [ ] Add real local chain fixture whose baseline `python -m pytest -q` fails, Scripted Mock applies a source-only fix, and automatic full pytest passes. Run `python -m pytest tests/e2e/test_real_pytest_chain.py -q`. **Expected before fixture integration:** fail because real runner is not wired; **after:** one test passes with frozen argv/cwd/clean environment assertions.
@@ -650,7 +736,7 @@ flowchart LR
 - Test: `tests/integration/web/test_task_views.py`
 - Modify: `pyproject.toml`
 
-**Interfaces:** Adds `coding-agent-harness` entry point with `run`, `web`, `key set/status/clear`; provides `create_local_app(application, security_config)` sharing the same service/Core.
+**Interfaces:** Creates `src/coding_agent_harness/cli/app.py`, then adds `[project.scripts]` entry `coding-agent-harness = "coding_agent_harness.cli.app:main"` and real invocation tests for `run`, `web`, `key set/status/clear`; the entry point must not be published before both target module and invocation tests exist. Provides `create_local_app(application, security_config)` sharing the same service/Core.
 
 - [ ] **Red:** CLI tests assert interactive trust is not preselected, noninteractive execution needs `--trust-repo`, provider/data categories are shown, approval uses local prompt (no CSRF fields), and key status never prints Key.
 - [ ] Web tests assert bind host rejects non-`127.0.0.1`, bootstrap token is high-entropy/short-lived/one-use, URL fragment exchange yields short-lived HttpOnly SameSite=Strict cookie, and token never appears in logs/SQLite.
@@ -709,7 +795,7 @@ flowchart LR
 
 ### Task 18: Package, Docker Build Contract, and Dual CI
 
-**Goal / requirements:** Produce installable artifacts, a non-root fixed-demo image and identical GitLab/GitHub automated gates. Covers NFR-014, NFR-015; supports AC-011, AC-012.
+**Goal / requirements:** Produce installable artifacts, a hash-pinned reproducible dependency-installation/lock policy, a non-root fixed-demo image and identical GitLab/GitHub automated gates. Task 1 minor-series ranges are compatibility bounds, not a lock. Covers NFR-014, NFR-015; supports AC-011, AC-012.
 
 **Dependencies:** Tasks 1–17.
 
