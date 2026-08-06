@@ -560,6 +560,16 @@ This section is authoritative for sequencing the remaining work in the current r
 
 **Acceptance:** Local build and release verification pass, required course submission artifacts are present, the documented demonstrations are repeatable, and the current release limitations are accurate.
 
+### Current Delivery Evidence
+
+- Task 1: `f976cc2`; Task 2: `634712f`; Task 3: `fc12c5989b71975b280bdaa3d5ac6f6e7f70215c`; Task 4: `d176198`.
+- Task 5: `10455b31ce60f18d1450aa42fb88393a79c785fc`; Task 6: `55b6186a3dfa6c95287b8b92d6f0c49d0d14e98d`; Task 7: `ab5c23fc1cb58ddde32920e463b83413741b9270`; Task 8: `5de2d27dfb70ac606201b07a4c867aa8d4006549`; Task 9: `cd431e2a7482db28955f79a768c7b79d0aefc473`.
+- Milestone A: `630ba9c02315b534addc0aa3a4a011815c9b7271`; Milestone B: `7eff8038bdc7f15df8a3bcdfb215d93cb71ee6d8`; Milestone C: `8aae4f6f962d877a9860de7412589fc55ff92e19`.
+- The cold-start and planning record begins at `daffeb6857e10101d92091c8dcb6e60e8772aea6`.
+- Milestone D local documentation, package artifacts, isolated-install checks, license, and CI definitions are prepared in the current uncommitted review set. Local CI configuration is testable; remote CI execution remains pending.
+- The confirmed course delivery route for this release is the CLI plus a hosted GitHub Release; a Web UI is not a submission blocker. Earlier atomic-task Web UI text remains for historical requirements traceability and is not a claim about the current delivery gate.
+- Task 18 is only complete for the current release's local package-build and CI-configuration subset. Task 19 is only complete for agent-owned documentation and license work; `REFLECTION.md` remains student-authored and pending. Task 20 has local Release Candidate evidence only; push, Tag creation, hosted Release creation, and asset upload remain pending explicit human action.
+
 ### Deferred Enhancements
 
 The following are outside the current release and remain traceable to their original Task text where applicable:
