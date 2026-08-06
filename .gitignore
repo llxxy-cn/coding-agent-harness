@@ -1,0 +1,28 @@
+# Credentials and sensitive local files
+.env
+.env.*
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# Harness state
+*.db
+*.sqlite
+*.sqlite3
+.harness/
+harness-data/
+
+# Build and Python artifacts
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/

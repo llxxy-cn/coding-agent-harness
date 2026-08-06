@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68,<69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "coding-agent-harness"
+version = "0.1.0"
+description = "A governed local coding agent harness with deterministic pytest feedback."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "pydantic>=2.13.4,<2.14",
+    "typer>=0.27.1,<0.28",
+    "fastapi>=0.141.1,<0.142",
+    "uvicorn>=0.52.1,<0.53",
+    "jinja2>=3.1.6,<3.2",
+    "openai>=2.53.0,<2.54",
+    "keyring>=25.7.0,<25.8",
+    "platformdirs>=4.11.0,<4.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1.1,<9.2",
+    "pytest-cov>=7.1.0,<7.2",
+    "httpx>=0.28.1,<0.29",
+    "build>=1.5.0,<1.6",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
