@@ -1,0 +1,14 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, status TEXT NOT NULL, lease_owner TEXT, lease_until TEXT);
+CREATE TABLE IF NOT EXISTS actions (task_id TEXT NOT NULL, action_id TEXT NOT NULL, status TEXT NOT NULL, PRIMARY KEY(task_id, action_id), FOREIGN KEY(task_id) REFERENCES tasks(task_id));
+CREATE TABLE IF NOT EXISTS tool_results (task_id TEXT NOT NULL, action_id TEXT NOT NULL, result_json TEXT NOT NULL, FOREIGN KEY(task_id, action_id) REFERENCES actions(task_id, action_id));
+CREATE TABLE IF NOT EXISTS test_runs (run_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, data_json TEXT NOT NULL, FOREIGN KEY(task_id) REFERENCES tasks(task_id));
+CREATE TABLE IF NOT EXISTS feedback_states (task_id TEXT PRIMARY KEY, data_json TEXT NOT NULL, FOREIGN KEY(task_id) REFERENCES tasks(task_id));
+CREATE TABLE IF NOT EXISTS approvals (task_id TEXT NOT NULL, action_id TEXT NOT NULL, status TEXT NOT NULL, PRIMARY KEY(task_id, action_id), FOREIGN KEY(task_id, action_id) REFERENCES actions(task_id, action_id));
+CREATE TABLE IF NOT EXISTS memories (memory_id TEXT PRIMARY KEY, task_id TEXT, project_identity_hash TEXT, data_json TEXT NOT NULL, FOREIGN KEY(task_id) REFERENCES tasks(task_id));
+CREATE TABLE IF NOT EXISTS audit_events (event_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, data_json TEXT NOT NULL, FOREIGN KEY(task_id) REFERENCES tasks(task_id));
+CREATE TABLE IF NOT EXISTS patch_attempts (patch_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, data_json TEXT NOT NULL, FOREIGN KEY(task_id) REFERENCES tasks(task_id));
+CREATE TABLE IF NOT EXISTS patch_files (patch_id TEXT NOT NULL, path TEXT NOT NULL, FOREIGN KEY(patch_id) REFERENCES patch_attempts(patch_id));
+CREATE TABLE IF NOT EXISTS artifact_refs (artifact_id TEXT PRIMARY KEY, task_id TEXT NOT NULL, schema_id TEXT NOT NULL, schema_version INTEGER NOT NULL, media_type TEXT NOT NULL, byte_length INTEGER NOT NULL, sha256 TEXT NOT NULL, relative_storage_path TEXT NOT NULL, FOREIGN KEY(task_id) REFERENCES tasks(task_id));
+CREATE TABLE IF NOT EXISTS execution_intents (task_id TEXT NOT NULL, action_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(task_id, action_id), FOREIGN KEY(task_id, action_id) REFERENCES actions(task_id, action_id));
+CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
