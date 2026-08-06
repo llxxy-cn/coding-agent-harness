@@ -105,12 +105,12 @@ class CoreTestRunner:
         self.environment = dict(environment or os.environ)
 
     def run(self) -> ActionExecution:
-        return self._run(TestPhase.POST_PATCH, FrozenCommand(argv=self.config.tests.default_command))
+        return self._run(TestPhase.POST_PATCH, FrozenCommand(argv=list(self.config.tests.default_command)))
 
     def run_action(self, action: RunTestsAction) -> ActionExecution:
         phase = TestPhase.FOCUSED if action.scope == "focused" else TestPhase.REQUESTED_FULL
         argv = self.config.tests.default_command + action.targets
-        return self._run(phase, FrozenCommand(argv=argv))
+        return self._run(phase, FrozenCommand(argv=list(argv)))
 
     def _run(self, phase: TestPhase, command: FrozenCommand) -> ActionExecution:
         execution = self.runner.run(TestRequest(

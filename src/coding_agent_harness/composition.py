@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -215,6 +216,7 @@ def build_default_real_runtime(
     repository_preflight=None,
     config_source_loader=None,
     trusted_python=None,
+    workspace_hasher=None,
 ):
     from platformdirs import user_config_path, user_data_path
     import os
@@ -314,7 +316,7 @@ def build_default_real_runtime(
         pytest_runner = PytestTestRunner(
             launcher=action_launcher,
             artifact_store=artifact_store,
-            workspace_hasher=workspace_sha256,
+            workspace_hasher=workspace_hasher or workspace_sha256,
             parser=parsed_marker,
             trusted_python=str(Path(trusted_python or sys.executable).resolve()),
         )
@@ -451,5 +453,124 @@ class _DemoRuntime:
         return view
 
 
-def build_demo_runtime(*, keyring_factory=None, provider_factory=None):
-    return _DemoRuntime()
+_REPAIR_DEMO_PATCH = "--- a/calculator.py\n+++ b/calculator.py\n@@ -1,2 +1,2 @@\n def add(a: int, b: int) -> int:\n-    return a - b\n+    return a + b\n"
+_REPAIR_DEMO_ACTIONS = (
+    {"type": "read_file", "path": "calculator.py"},
+    {"type": "search_code", "path": ".", "query": "return a - b", "case_sensitive": True},
+    {"type": "apply_patch", "diff": _REPAIR_DEMO_PATCH},
+)
+
+
+def _demo_workspace_sha256(root: Path) -> str:
+    digest = hashlib.sha256()
+    ignored_parts = {".git", ".pytest_cache", "__pycache__"}
+    for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
+        if not path.is_file() or any(part in ignored_parts for part in path.parts) or path.suffix in {".pyc", ".pyo"}:
+            continue
+        relative = path.relative_to(root).as_posix().encode("utf-8", errors="strict")
+        content = path.read_bytes()
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return digest.hexdigest()
+
+
+class _ScriptedProviderFactory:
+    def __init__(self, actions) -> None:
+        self.actions = tuple(actions)
+        self.clients = []
+
+    def create(self, *, frozen_config):
+        del frozen_config
+        client = ScriptedMockLLM(self.actions)
+        self.clients.append(client)
+        return client
+
+
+class _OfflineDemoRuntime:
+    def __init__(self, *, data_root, scripted_actions, max_actions, trusted_python) -> None:
+        from coding_agent_harness.config.defaults import BUILTIN_CONFIG
+        from coding_agent_harness.config.resolver import resolve_config
+
+        limits = {} if max_actions is None else {"max_actions": max_actions}
+        self.data_root = Path(data_root).resolve()
+        self.data_root.joinpath("worktrees").mkdir(parents=True, exist_ok=True)
+        self.provider_factory = _ScriptedProviderFactory(scripted_actions)
+        self.frozen_config = resolve_config(BUILTIN_CONFIG, {"llm": {"model": "offline-scripted"}, "limits": limits}, {}, "real")
+        self.runtime = build_default_real_runtime(
+            data_root=self.data_root,
+            frozen_config=self.frozen_config,
+            provider_factory=self.provider_factory,
+            trusted_python=trusted_python,
+            workspace_hasher=_demo_workspace_sha256,
+        )
+        self.external_action_calls = 0
+        self.patch_apply_calls = 0
+
+    def run(self, *, repository: Path, task_description: str, mode: str, trust_repo: bool):
+        if mode != "demo":
+            raise ValueError("demo mode is required")
+        view = self.runtime.run(repository=repository, task_description=task_description, mode="real", trust_repo=trust_repo)
+        self._update_counters(view.task_id)
+        return view
+
+    def status(self, task_id: UUID):
+        return self.runtime.status(task_id)
+
+    def resume(self, task_id: UUID):
+        view = self.runtime.resume(task_id)
+        self._update_counters(view.task_id)
+        return view
+
+    def _update_counters(self, task_id: str) -> None:
+        session = self.runtime.application.session_store.load(TaskId(value=UUID(task_id)))
+        external = {"list_files", "read_file", "search_code", "run_tests", "git_diff", "git_status", "run_diagnostic"}
+        self.external_action_calls = sum(entry.action_type in external for entry in session.history)
+        self.patch_apply_calls = sum(entry.action_type == "apply_patch" for entry in session.history)
+
+
+class _DemoRouter:
+    def __init__(self, *, data_root, trusted_python) -> None:
+        self.data_root = data_root
+        self.trusted_python = trusted_python
+        self.active = None
+        self.legacy = _DemoRuntime()
+
+    @staticmethod
+    def _recognized(repository: Path) -> bool:
+        return repository.joinpath("calculator.py").is_file() and repository.joinpath("tests", "test_calculator.py").is_file()
+
+    def _offline(self, actions=()):
+        return _OfflineDemoRuntime(data_root=self.data_root, scripted_actions=actions, max_actions=None, trusted_python=self.trusted_python)
+
+    def run(self, *, repository: Path, task_description: str, mode: str, trust_repo: bool):
+        repository = Path(repository).resolve(strict=True)
+        if not self._recognized(repository):
+            return self.legacy.run(repository=repository, task_description=task_description, mode=mode, trust_repo=trust_repo)
+        self.active = self._offline(_REPAIR_DEMO_ACTIONS)
+        return self.active.run(repository=repository, task_description=task_description, mode=mode, trust_repo=trust_repo)
+
+    def status(self, task_id: UUID):
+        if self.active is not None:
+            return self.active.status(task_id)
+        try:
+            return self._offline().status(task_id)
+        except KeyError:
+            return self.legacy.status(task_id)
+
+    def resume(self, task_id: UUID):
+        if self.active is not None:
+            return self.active.resume(task_id)
+        return self._offline().resume(task_id)
+
+
+def build_demo_runtime(*, keyring_factory=None, provider_factory=None, data_root=None, scripted_actions=None, max_actions=None, trusted_python=None):
+    del keyring_factory, provider_factory
+    if data_root is None:
+        from platformdirs import user_data_path
+
+        data_root = user_data_path("coding-agent-harness", appauthor=False) / "demo"
+    if scripted_actions is not None:
+        return _OfflineDemoRuntime(data_root=data_root, scripted_actions=scripted_actions, max_actions=max_actions, trusted_python=trusted_python)
+    return _DemoRouter(data_root=data_root, trusted_python=trusted_python)
