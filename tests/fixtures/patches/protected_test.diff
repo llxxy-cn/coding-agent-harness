@@ -1,0 +1,6 @@
+diff --git a/tests/test_example.py b/tests/test_example.py
+--- a/tests/test_example.py
++++ b/tests/test_example.py
+@@ -1,1 +1,1 @@
+-old = True
++new = True

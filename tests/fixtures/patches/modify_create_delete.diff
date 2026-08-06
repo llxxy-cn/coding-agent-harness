@@ -1,0 +1,17 @@
+diff --git a/src/app.py b/src/app.py
+--- a/src/app.py
++++ b/src/app.py
+@@ -1,2 +1,2 @@
+-old = 1
++new = 2
+ keep = True
+diff --git /dev/null b/src/new.py
+--- /dev/null
++++ b/src/new.py
+@@ -0,0 +1,1 @@
++created = True
+diff --git a/src/remove.py b/src/remove.py
+--- a/src/remove.py
++++ /dev/null
+@@ -1,1 +0,0 @@
+-remove = True
