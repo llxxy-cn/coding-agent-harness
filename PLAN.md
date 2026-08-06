@@ -518,6 +518,64 @@ These compatible minor-series ranges are not exact locks. Lock files, hash-pinne
 
 ---
 
+## Course Submission Core Delivery Path
+
+This section is authoritative for sequencing the remaining work in the current release. The course submission scope prioritizes a complete, runnable, demonstrable Coding Agent vertical loop. Related atomic Tasks are grouped into integration milestones according to their existing interfaces and dependency edges. Tasks 10–20 remain below, unchanged, as the detailed source for requirements, tests, completion criteria, traceability, and suggested commits. A milestone may use only the subset of a mapped Task required by its stated acceptance; no unimplemented item may be reported as complete.
+
+### Milestone A — Test Feedback and Agent Orchestration
+
+**Mapped atomic Tasks:** Task 10 (pytest parsing, normalized feedback, state fingerprints), Task 12 (minimum bounded task memory and safe Context Builder), Task 13 (ScriptedMockLLM, transition tables, budgets, and the self-implemented HarnessCore loop), and Task 14 (minimum Application Service orchestration and automatic governed full-test path).
+
+**Current release scope:**
+
+- Parse common pytest pass, failure, and collection-error output into strict sanitized results without retaining raw output.
+- Produce deterministic fingerprints and the existing `FeedbackDecision` classifications needed by the current task history.
+- Build the minimum bounded `PromptContext` from the task, frozen configuration summary, allowed Action schema, safe file/test summaries, recent safe Action and ToolResult summaries, current feedback, and remaining budgets.
+- Drive the project-owned agent loop with `ScriptedMockLLM`; perform Action parsing, capability and Policy checks, tool/Patch dispatch, mandatory full tests after Patch, feedback reinjection, and deterministic stop decisions.
+- Expose only the minimum Application Service entry points required to run and resume this loop. Infrastructure remains injected through ports.
+
+**Acceptance:** A deterministic `ScriptedMockLLM` scenario completes one automatic repair loop from initial task context through a Patch, a governed full pytest result, parsed feedback, a changed next action, and success or a stable pause/stop outcome. Focused tests cannot cause task success; workspace drift pauses for human review; raw pytest output and credentials never enter context.
+
+### Milestone B — Real Provider and CLI
+
+**Mapped atomic Tasks:** Task 11 (worktree, trust preflight, lease, and minimum safe recovery), Task 15 (one real provider and credential port implementation), and Task 16 (CLI run/status/resume, approval and pause/resume flow, demo mode, and stable user-facing errors).
+
+**Current release scope:** Connect one provider through the existing single-generation LLM port, read credentials only through `CredentialStore`, and expose the shared Application Service through the CLI. Preserve exact trust, approval, worktree, and resume validation boundaries. Local Web UI work from Task 16 is a deferred enhancement and must not be reported as implemented by the CLI milestone.
+
+**Acceptance:** A task can be started from the CLI and complete one real-provider or fully substitutable offline demonstration flow with explicit trust, approval, status, resume, and safe error behavior.
+
+### Milestone C — End-to-End Demonstration
+
+**Mapped atomic Tasks:** Task 17, using the Task 14 end-to-end chain delivered by Milestone A and the provider/CLI boundaries delivered by Milestone B.
+
+**Current release scope:** Provide repeatable fixtures and offline scenarios for successful repair, Policy rejection, human approval, invalid LLM Action, maximum-budget stop, unparseable test output, and the no-credential demo path. Retain the three mechanism demonstrations required by the course: governance interception, feedback-driven action change, and a deterministic feedback-loop behavior. The public Web UI portion of Task 17 is a deferred enhancement.
+
+**Acceptance:** All key demonstration scenarios run repeatedly with deterministic results and no network dependency.
+
+### Milestone D — Submission and Release
+
+**Mapped atomic Tasks:** Task 18 (package, build, container, and CI contracts), Task 19 (README, architecture/data-flow, installation, demonstration, security boundary, known-limit, AI-use, license, and delivery evidence), and Task 20 (local release verification and release manifest).
+
+**Current release scope:** Produce installable artifacts, documented local demonstration steps, architecture and data-flow documentation, the security and known-limit record, AI-use evidence, and a final regression gate. External publication and deployment actions remain explicitly gated and are not performed automatically.
+
+**Acceptance:** Local build and release verification pass, required course submission artifacts are present, the documented demonstrations are repeatable, and the current release limitations are accurate.
+
+### Deferred Enhancements
+
+The following are outside the current release and remain traceable to their original Task text where applicable:
+
+- Multiple real LLM providers beyond the single provider required by Milestone B.
+- Local and public Web UI surfaces beyond the CLI and deterministic script/test demonstrations.
+- Parallel task execution and multi-executor coordination.
+- Full long-term and cross-project memory beyond the minimum bounded current-task history.
+- Languages and test frameworks beyond Python and pytest.
+- Complete production-grade process isolation beyond the documented trusted-repository boundary and bounded process controls.
+- Recovery coverage for every non-demonstration crash combination beyond the minimum safe no-retry and human-pause paths.
+- Additional cross-platform hardening beyond the platforms exercised by the current release verification.
+- External registry publication and HTTPS deployment until separately authorized.
+
+These deferred enhancements do not remove or redefine any course grading requirement. The self-implemented agent loop, injectable mock LLM, deterministic code-based governance and feedback mechanisms, minimum memory/context behavior, offline mechanism demonstrations, configuration, tools, and runnable vertical loop remain required in the course submission scope.
+
 ### Task 10: Pytest Parser, Fingerprints, and Pure Feedback Engine
 
 **Goal / requirements:** Implement the main contribution: stable failure extraction, summaries, fingerprints and objective progress/regression/loop decisions. Covers FR-006–FR-010; NFR-004, NFR-010; SEC-007–SEC-010; supports AC-003, AC-006, AC-009.
