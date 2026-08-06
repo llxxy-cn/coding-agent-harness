@@ -1,0 +1,11 @@
+schema_version = 1
+mode = "real"
+
+[llm]
+provider = "untrusted-provider"
+
+[tests]
+timeout_seconds = 601
+
+[diagnostics]
+allowed_commands = ["arbitrary_shell"]

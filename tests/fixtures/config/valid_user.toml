@@ -1,0 +1,36 @@
+schema_version = 1
+
+[llm]
+provider = "openai"
+model = "configured-by-user"
+
+[tests]
+default_command = ["python", "-m", "pytest", "-q"]
+timeout_seconds = 120
+
+[limits]
+max_feedback_rounds = 8
+max_actions = 40
+history_window = 8
+max_no_progress = 2
+max_changed = 2
+max_process_output_bytes = 1048576
+max_llm_feedback_bytes = 32768
+max_read_file_bytes = 524288
+max_search_results = 200
+
+[patch]
+approval_file_threshold = 5
+approval_line_threshold = 300
+
+[paths]
+protected = ["tests/**", "**/test_*.py", "**/*_test.py", "**/conftest.py", "pytest.ini", "tox.ini", "pyproject.toml", "setup.cfg"]
+sensitive = ["local-secrets/**"]
+
+[diagnostics]
+allowed_commands = ["ruff_check", "mypy_check"]
+
+[memory]
+allowed_types = ["project_rule", "user_constraint", "repair_summary", "human_decision", "known_issue"]
+max_items_per_context = 10
+max_context_bytes = 8192
