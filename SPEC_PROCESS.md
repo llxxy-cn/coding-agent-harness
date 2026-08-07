@@ -103,3 +103,7 @@ The milestone layer improved delivery visibility, but it did not erase the atomi
 - `REFLECTION.md`: student-authored and not created or edited by the assistant
 
 The planned repository is `https://github.com/llxxy-cn/coding-agent-harness`. The planned `v0.1.0` release address is `https://github.com/llxxy-cn/coding-agent-harness/releases/tag/v0.1.0`. These addresses are identifiers for the next human-authorized stage, not evidence that remote CI or the hosted release exists.
+
+### Subsequent Delivery Checkpoint — 2026-08-07
+
+The repository has been pushed, and the student-authored `REFLECTION.md` has been committed. Implementation candidate `99b615efa15de2bbda7234817b9d46e5e6d7cfb8` passed the `package-build`, `test (3.11)`, and `test (3.12)` jobs in `https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31180147117`. The pending statements immediately above remain as historical evidence of the earlier checkpoint. Tag creation, hosted Release creation, and asset publication are not claimed as complete before they are actually executed.

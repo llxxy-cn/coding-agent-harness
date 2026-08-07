@@ -23,3 +23,10 @@
 - Delivery endpoints: the repository is planned at `https://github.com/llxxy-cn/coding-agent-harness`; Tag `v0.1.0` and the hosted Release at `https://github.com/llxxy-cn/coding-agent-harness/releases/tag/v0.1.0` are planned and have not been created.
 - Automation boundary: GitHub and GitLab CI definitions are prepared and locally contract-tested. No remote CI run is claimed; remote execution remains pending until the student configures and publishes the repository.
 - Student-owned gate: `REFLECTION.md` remains entirely student-authored and is not created or drafted by the agent.
+
+## 2026-08-07 — Subsequent Delivery Checkpoint
+
+- The repository push is complete, and the student-authored `REFLECTION.md` has been committed.
+- Implementation candidate `99b615efa15de2bbda7234817b9d46e5e6d7cfb8` passed the `package-build`, `test (3.11)`, and `test (3.12)` jobs in `https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31180147117`.
+- Earlier pending statements above record the state at that earlier checkpoint and are retained as historical evidence.
+- Tag creation, hosted Release creation, and asset upload are not claimed as complete before they are actually executed.

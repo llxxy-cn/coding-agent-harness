@@ -13,6 +13,8 @@ import coding_agent_harness
 ROOT = Path(__file__).resolve().parents[3]
 REPOSITORY_URL = "https://github.com/llxxy-cn/coding-agent-harness"
 RELEASE_URL = "https://github.com/llxxy-cn/coding-agent-harness/releases/tag/v0.1.0"
+IMPLEMENTATION_CANDIDATE = "99b615efa15de2bbda7234817b9d46e5e6d7cfb8"
+CI_RUN_URL = "https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31180147117"
 WHEEL_SCHEMA = "coding_agent_harness/adapters/sqlite/schema.sql"
 SDIST_SCHEMA = "coding-agent-harness-0.1.0/src/coding_agent_harness/adapters/sqlite/schema.sql"
 
@@ -89,8 +91,12 @@ def test_release_documents_cover_architecture_demo_and_current_limits() -> None:
     assert RELEASE_URL in readme
     assert REPOSITORY_URL in notes
     assert RELEASE_URL in notes
-    assert "planned release" in readme.lower()
-    assert "planned release" in notes.lower()
+    assert IMPLEMENTATION_CANDIDATE in readme
+    assert IMPLEMENTATION_CANDIDATE in notes
+    assert CI_RUN_URL in readme
+    assert CI_RUN_URL in notes
+    assert "Installation from a package registry is not claimed." in readme
+    assert "not published to a package registry" in notes
     assert "MIT License" in readme
     assert "Copyright (c) 2026 llxxy-cn" in readme
     assert "upstream license" in readme
@@ -119,6 +125,8 @@ def test_ai_log_records_reviewable_assistance_without_sensitive_values() -> None
         "review",
     ):
         assert phrase in log
+    assert IMPLEMENTATION_CANDIDATE in log
+    assert CI_RUN_URL in log
     assert "API key" not in log
 
 
@@ -145,3 +153,5 @@ def test_spec_process_records_real_commits_and_pending_external_evidence() -> No
     assert "remote CI: pending verification" in process
     assert "hosted release: planned, not created" in process
     assert "student-authored" in process
+    assert IMPLEMENTATION_CANDIDATE in process
+    assert CI_RUN_URL in process

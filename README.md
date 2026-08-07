@@ -6,13 +6,13 @@ Coding Agent Harness is a governed local agent for making bounded changes to tru
 
 The delivered core does not use LangChain AgentExecutor, AutoGen, CrewAI, LlamaIndex Agent, the OpenAI Agents SDK, or another packaged agent loop. The OpenAI adapter performs one Responses API call; `HarnessCore` owns orchestration.
 
-Version 0.1.0 is a local package Release Candidate. It includes an offline deterministic demonstration and one real-provider adapter. The current course delivery is the CLI plus a planned hosted GitHub Release.
+Version 0.1.0 is the current Release candidate. It includes an offline deterministic demonstration and one real-provider adapter. Implementation candidate `99b615efa15de2bbda7234817b9d46e5e6d7cfb8` passed the `package-build`, `test (3.11)`, and `test (3.12)` jobs in [GitHub Actions run 31180147117](https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31180147117).
 
 Repository: https://github.com/llxxy-cn/coding-agent-harness
 
-Planned v0.1.0 release: https://github.com/llxxy-cn/coding-agent-harness/releases/tag/v0.1.0
+Canonical v0.1.0 Release URL: https://github.com/llxxy-cn/coding-agent-harness/releases/tag/v0.1.0
 
-The planned release address is not a publication claim. Remote CI, push, Tag creation, asset upload, and hosted Release creation remain pending human-authorized steps.
+The GitHub Release page is the authoritative source for current Tag, hosted Release, and asset availability. This document does not claim that Tag creation, hosted Release creation, or asset upload has occurred before GitHub reports it there.
 
 ## Features
 
@@ -48,7 +48,7 @@ py -3.12 -m venv .verify-venv
 .\.verify-venv\Scripts\coding-agent-harness.exe --help
 ```
 
-Delete `.verify-venv` after verification. Published package installation is not claimed by this Release Candidate.
+Delete `.verify-venv` after verification. Installation from a package registry is not claimed.
 
 ## Configuration
 
@@ -169,7 +169,7 @@ The supported local artifact is a universal Python wheel plus source distributio
 .\.venv\Scripts\python.exe -m build --no-isolation
 ```
 
-The console entry point is `coding-agent-harness = coding_agent_harness.cli.app:main`. Release contents and local evidence are summarized in [RELEASE_NOTES.md](RELEASE_NOTES.md). The planned `v0.1.0` hosted Release will distribute the audited wheel and sdist only after the final commit, remote CI, Tag, and publication gates pass.
+The console entry point is `coding-agent-harness = coding_agent_harness.cli.app:main`. Release contents and local evidence are summarized in [RELEASE_NOTES.md](RELEASE_NOTES.md). The canonical `v0.1.0` GitHub Release page is the authoritative source for whether the audited wheel and sdist are currently available.
 
 ## License
 
@@ -189,4 +189,4 @@ See [LICENSE](LICENSE) for the standard terms. Third-party dependencies are not 
 - There is no parallel task execution or multi-agent coordination.
 - Process controls are bounded local execution, not a production-grade OS sandbox.
 - Two symlink-security tests may skip on Windows when the account lacks symlink privilege.
-- Remote CI evidence, public distribution, the student-authored reflection, push, Tag, and hosted Release remain separate human-gated delivery work.
+- Tag creation, hosted Release creation, and asset upload remain separately authorized publication actions until they are reflected on the canonical GitHub Release page.
