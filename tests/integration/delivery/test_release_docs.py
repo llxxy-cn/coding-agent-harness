@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+import tarfile
 import tomllib
+import zipfile
 from pathlib import Path
 
 import coding_agent_harness
@@ -9,10 +13,27 @@ import coding_agent_harness
 ROOT = Path(__file__).resolve().parents[3]
 REPOSITORY_URL = "https://github.com/llxxy-cn/coding-agent-harness"
 RELEASE_URL = "https://github.com/llxxy-cn/coding-agent-harness/releases/tag/v0.1.0"
+WHEEL_SCHEMA = "coding_agent_harness/adapters/sqlite/schema.sql"
+SDIST_SCHEMA = "coding-agent-harness-0.1.0/src/coding_agent_harness/adapters/sqlite/schema.sql"
 
 
 def text(relative: str) -> str:
     return (ROOT / relative).read_text(encoding="utf-8")
+
+
+def test_built_archives_include_sqlite_schema(tmp_path: Path) -> None:
+    output = tmp_path / "dist"
+    subprocess.run(
+        (sys.executable, "-m", "build", "--no-isolation", "--outdir", str(output)),
+        cwd=ROOT,
+        shell=False,
+        check=True,
+    )
+
+    with zipfile.ZipFile(output / "coding_agent_harness-0.1.0-py3-none-any.whl") as wheel:
+        assert WHEEL_SCHEMA in wheel.namelist()
+    with tarfile.open(output / "coding-agent-harness-0.1.0.tar.gz", "r:gz") as sdist:
+        assert SDIST_SCHEMA in sdist.getnames()
 
 
 def test_readme_documents_real_cli_and_safety_boundaries() -> None:
