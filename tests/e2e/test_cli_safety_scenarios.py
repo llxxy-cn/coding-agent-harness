@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from uuid import UUID
 
@@ -13,7 +14,7 @@ from tests.e2e.test_cli_repair_demo import PATCH, prepared_repository
 from tests.unit.core.test_harness import Executor, FullTests, TASK_ID, core, make_test_run, parsed
 
 
-PYTHON = Path(".venv/Scripts/python.exe").resolve()
+PYTHON = str(Path(sys.executable).resolve())
 
 
 def test_invalid_actions_stop_without_tool_or_patch_side_effects(tmp_path: Path) -> None:

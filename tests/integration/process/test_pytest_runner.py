@@ -74,6 +74,7 @@ def request(root: Path, command=None, environment=None) -> RunnerRequest:
 def runner(root: Path, result: LaunchResult, hashes=(HASH_A, HASH_A), parser=lambda raw, code: ParsedResult(summary="safe")):
     launcher = SpyLauncher(result)
     store = FakeArtifactStore()
+    trusted_python = str((root / "trusted-python").resolve())
     wall = SequenceClock((datetime(2024, 1, 1, tzinfo=timezone.utc), datetime(2024, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=9)))
     mono = SequenceClock((10.0, 10.125))
     hash_values = iter(hashes)
@@ -84,17 +85,17 @@ def runner(root: Path, result: LaunchResult, hashes=(HASH_A, HASH_A), parser=lam
         parser=parser,
         wall_clock=wall,
         monotonic_clock=mono,
-        trusted_python="C:/trusted/python.exe",
+        trusted_python=trusted_python,
     )
-    return adapter, launcher, store
+    return adapter, launcher, store, trusted_python
 
 
 def test_uses_trusted_python_fixed_cwd_shell_false_and_allowlisted_environment(tmp_path: Path) -> None:
     result = LaunchResult(status=LaunchStatus.COMPLETED, exit_code=0, stdout=b"ok", stderr=b"", stdout_truncated=False, stderr_truncated=False)
-    adapter, launcher, _ = runner(tmp_path, result)
+    adapter, launcher, _, trusted_python = runner(tmp_path, result)
     execution = adapter.run(request(tmp_path, environment={"SYSTEMROOT": "C:/Windows", "TEMP": "C:/Temp", "PATH": "evil", "OPENAI_API_KEY": "secret", "AWS_SECRET_ACCESS_KEY": "cloud", "GITHUB_TOKEN": "git"}))
     launched = launcher.requests[0]
-    assert launched.argv == ("C:/trusted/python.exe", "-m", "pytest", "-q")
+    assert launched.argv == (trusted_python, "-m", "pytest", "-q")
     assert launched.cwd == tmp_path.resolve() and launched.shell is False
     assert launched.env == {"SYSTEMROOT": "C:/Windows", "TEMP": "C:/Temp"}
     assert execution.test_run.outcome is RunOutcome.PASSED
@@ -102,7 +103,7 @@ def test_uses_trusted_python_fixed_cwd_shell_false_and_allowlisted_environment(t
 
 @pytest.mark.parametrize("argv", [["pytest", "-q", "|"] , ["pytest", ">", "out"], ["python", "-m", "pytest", "&&", "whoami"]])
 def test_rejects_shell_syntax_before_launch(tmp_path: Path, argv) -> None:
-    adapter, launcher, _ = runner(tmp_path, LaunchResult.completed(0, b"", b""))
+    adapter, launcher, _, _ = runner(tmp_path, LaunchResult.completed(0, b"", b""))
     with pytest.raises(ValueError):
         adapter.run(request(tmp_path, FrozenCommand(argv=argv)))
     assert launcher.requests == []
@@ -124,7 +125,7 @@ def test_rejects_shell_syntax_before_launch(tmp_path: Path, argv) -> None:
 def test_outcome_exit_code_and_artifact_matrix(tmp_path: Path, status, exit_code, parsed, outcome, expected_code, has_parsed) -> None:
     launch = LaunchResult(status=status, exit_code=exit_code, stdout=b"safe", stderr=b"", stdout_truncated=False, stderr_truncated=False)
     parser = (lambda raw, code: ParsedResult(summary="safe")) if parsed else (lambda raw, code: None)
-    adapter, _, store = runner(tmp_path, launch, parser=parser)
+    adapter, _, store, _ = runner(tmp_path, launch, parser=parser)
     execution = adapter.run(request(tmp_path))
     run = execution.test_run
     assert run.outcome is outcome and run.exit_code == expected_code
@@ -136,7 +137,7 @@ def test_outcome_exit_code_and_artifact_matrix(tmp_path: Path, status, exit_code
 @pytest.mark.parametrize("exit_code", [0, 3, None])
 def test_workspace_drift_overrides_parseable_and_nonparseable_results(tmp_path: Path, exit_code) -> None:
     status = LaunchStatus.COMPLETED if exit_code is not None else LaunchStatus.UNKNOWN
-    adapter, _, store = runner(tmp_path, LaunchResult(status=status, exit_code=exit_code, stdout=b"", stderr=b"", stdout_truncated=False, stderr_truncated=False), hashes=(HASH_A, HASH_B))
+    adapter, _, store, _ = runner(tmp_path, LaunchResult(status=status, exit_code=exit_code, stdout=b"", stderr=b"", stdout_truncated=False, stderr_truncated=False), hashes=(HASH_A, HASH_B))
     execution = adapter.run(request(tmp_path))
     assert execution.test_run.outcome is RunOutcome.WORKSPACE_DRIFT
     assert execution.test_run.exit_code == exit_code
@@ -146,7 +147,7 @@ def test_workspace_drift_overrides_parseable_and_nonparseable_results(tmp_path: 
 
 def test_raw_output_is_transient_sanitized_artifact_is_verified_and_duration_is_monotonic(tmp_path: Path) -> None:
     secret = b"OPENAI_API_KEY=secret C:\\Users\\alice\\repo\\test.py"
-    adapter, _, store = runner(tmp_path, LaunchResult(status=LaunchStatus.COMPLETED, exit_code=0, stdout=secret, stderr=b"", stdout_truncated=True, stderr_truncated=False))
+    adapter, _, store, _ = runner(tmp_path, LaunchResult(status=LaunchStatus.COMPLETED, exit_code=0, stdout=secret, stderr=b"", stdout_truncated=True, stderr_truncated=False))
     execution = adapter.run(request(tmp_path, environment={"OPENAI_API_KEY": "secret"}))
     assert execution.raw_output.stdout == secret
     persisted = store.load(execution.test_run.sanitized_output_ref)
@@ -156,7 +157,7 @@ def test_raw_output_is_transient_sanitized_artifact_is_verified_and_duration_is_
 
 
 def test_artifact_reference_is_revalidated_before_return(tmp_path: Path) -> None:
-    adapter, _, store = runner(tmp_path, LaunchResult.completed(0, b"ok", b""))
+    adapter, _, store, _ = runner(tmp_path, LaunchResult.completed(0, b"ok", b""))
     original_put = store.put
     def corrupt(*args, **kwargs):
         ref = original_put(*args, **kwargs)

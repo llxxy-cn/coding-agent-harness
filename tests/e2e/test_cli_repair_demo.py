@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from uuid import UUID
 
@@ -11,6 +12,7 @@ from coding_agent_harness.domain.enums import TaskStatus
 
 
 FIXTURE = Path("tests/fixtures/e2e/repairable_project").resolve()
+PYTHON = str(Path(sys.executable).resolve())
 PATCH = "--- a/calculator.py\n+++ b/calculator.py\n@@ -1,2 +1,2 @@\n def add(a: int, b: int) -> int:\n-    return a - b\n+    return a + b\n"
 ACTIONS = (
     {"type": "read_file", "path": "calculator.py"},
@@ -37,7 +39,7 @@ def git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def pytest_run(cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        (str(Path(".venv/Scripts/python.exe").resolve()), "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider"),
+        (PYTHON, "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider"),
         cwd=cwd,
         shell=False,
         check=False,
@@ -59,7 +61,7 @@ def test_offline_cli_demo_repairs_only_isolated_worktree_with_real_pytest(tmp_pa
     runtime = build_demo_runtime(
         data_root=tmp_path / "data",
         scripted_actions=ACTIONS,
-        trusted_python=Path(".venv/Scripts/python.exe").resolve(),
+        trusted_python=PYTHON,
     )
     cli = build_cli(demo_runtime_factory=lambda: runtime, persistent_runtime_factory=lambda: runtime)
 
@@ -83,9 +85,9 @@ def test_new_demo_runtime_reads_persisted_success_status(tmp_path: Path) -> None
     from coding_agent_harness.composition import build_demo_runtime
 
     repository = prepared_repository(tmp_path)
-    first = build_demo_runtime(data_root=tmp_path / "data", scripted_actions=ACTIONS, trusted_python=Path(".venv/Scripts/python.exe").resolve())
+    first = build_demo_runtime(data_root=tmp_path / "data", scripted_actions=ACTIONS, trusted_python=PYTHON)
     created = first.run(repository=repository, task_description="repair", mode="demo", trust_repo=True)
-    second = build_demo_runtime(data_root=tmp_path / "data", scripted_actions=(), trusted_python=Path(".venv/Scripts/python.exe").resolve())
+    second = build_demo_runtime(data_root=tmp_path / "data", scripted_actions=(), trusted_python=PYTHON)
 
     loaded = second.status(UUID(created.task_id))
 
