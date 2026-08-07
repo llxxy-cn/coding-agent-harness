@@ -6,6 +6,7 @@ unit-test:
   stage: test
   image: python:3.12
   script:
+    - python -m pip install "setuptools>=68,<69" "wheel>=0.42,<1" "build>=1.5,<1.6"
     - python -m pip install -e ".[dev]"
     - python -m pytest -q
 

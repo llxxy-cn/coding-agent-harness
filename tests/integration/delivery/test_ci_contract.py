@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[3]
+BUILD_TOOLS = 'python -m pip install "setuptools>=68,<69" "wheel>=0.42,<1" "build>=1.5,<1.6"'
 
 
 def content(relative: str) -> str:
@@ -38,6 +39,7 @@ SOFTWARE.
 
 def test_github_actions_runs_matrix_tests_and_package_build_without_live_services() -> None:
     workflow = content(".github/workflows/ci.yml")
+    test_job, package_build_job = workflow.split("  package-build:", maxsplit=1)
 
     assert re.search(r"(?m)^name: ci$", workflow)
     assert re.search(r"(?m)^on:$", workflow)
@@ -46,12 +48,11 @@ def test_github_actions_runs_matrix_tests_and_package_build_without_live_service
     assert '["3.11", "3.12"]' in workflow
     assert "actions/checkout@v4" in workflow
     assert "actions/setup-python@v5" in workflow
+    assert BUILD_TOOLS in test_job
     assert 'python -m pip install -e ".[dev]"' in workflow
     assert "python -m pytest -q" in workflow
     assert "package-build:" in workflow
-    assert '"setuptools>=68,<69"' in workflow
-    assert '"wheel>=0.42,<1"' in workflow
-    assert '"build>=1.5,<1.6"' in workflow
+    assert BUILD_TOOLS in package_build_job
     assert "python -m build --no-isolation" in workflow
     assert not re.search(
         r"OPENAI_API_KEY|keyring|api[-_]?key|coding-agent-harness run|git (?:remote|fetch|pull|push)",
@@ -62,6 +63,7 @@ def test_github_actions_runs_matrix_tests_and_package_build_without_live_service
 
 def test_gitlab_ci_has_exact_unit_test_and_package_build_jobs() -> None:
     pipeline = content(".gitlab-ci.yml")
+    unit_test_job, package_build_job = pipeline.split("package-build:", maxsplit=1)
 
     assert re.search(r"(?m)^stages:$", pipeline)
     assert re.search(r"(?m)^  - test$", pipeline)
@@ -69,11 +71,10 @@ def test_gitlab_ci_has_exact_unit_test_and_package_build_jobs() -> None:
     assert re.search(r"(?m)^unit-test:$", pipeline)
     assert re.search(r"(?m)^package-build:$", pipeline)
     assert "python:3.12" in pipeline
+    assert BUILD_TOOLS in unit_test_job
     assert 'python -m pip install -e ".[dev]"' in pipeline
     assert "python -m pytest -q" in pipeline
-    assert '"setuptools>=68,<69"' in pipeline
-    assert '"wheel>=0.42,<1"' in pipeline
-    assert '"build>=1.5,<1.6"' in pipeline
+    assert BUILD_TOOLS in package_build_job
     assert "python -m build --no-isolation" in pipeline
     assert not re.search(
         r"OPENAI_API_KEY|keyring|api[-_]?key|coding-agent-harness run|git (?:remote|fetch|pull|push)",
