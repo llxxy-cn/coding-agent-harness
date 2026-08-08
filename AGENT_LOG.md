@@ -30,3 +30,18 @@
 - Implementation candidate `99b615efa15de2bbda7234817b9d46e5e6d7cfb8` passed the `package-build`, `test (3.11)`, and `test (3.12)` jobs in `https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31180147117`.
 - Earlier pending statements above record the state at that earlier checkpoint and are retained as historical evidence.
 - Tag creation, hosted Release creation, and asset upload are not claimed as complete before they are actually executed.
+
+## 2026-08-08 13:57 +08:00 — A.6 Feedback-Driven Action Change Evidence
+
+- Task: A.6 feedback-driven action change demonstration
+- Branch: `task/a6-feedback-action-change` (from `feature/webui-v0.2.0`, commit `3e7b312`)
+- Worktree: sibling worktree `../coding-agent-harness-a6-feedback` (no `.gitignore` change needed)
+- Skills triggered: using-git-worktrees, writing-plans, subagent-driven-development, test-driven-development, requesting-code-review, verification-before-completion
+- Scope: create one e2e evidence test proving feedback-driven action change through HarnessCore with ScriptedMockLLM; update DEMO.md; no production file changes, no commit, no push, no PR
+- Fresh implementation subagent: task id `ses_020268b03ffeOKjUFRi4C7LIYb`; created `tests/e2e/test_mock_feedback_action_change.py` and appended `docs/DEMO.md`; test passed on first run (characterization/evidence pass, not Red)
+- Stage 1 review (spec/assignment compliance): task id `ses_0201fbfeaffe4gB7JPU7iAt1Vq`; verdict PASS; all 11 requirements MET; no issues found
+- Stage 2 review (code quality): task id `ses_020191f76ffe32ibddmdDmIkMP`; verdict APPROVED; no issues at any severity
+- Files modified: `tests/e2e/test_mock_feedback_action_change.py` (new, 92 lines), `docs/DEMO.md` (appended 12 lines)
+- Test results: focused 1 passed; related (harness + feedback) 18 passed; contract 11 passed; full suite 377 passed, 2 skipped (pre-existing Windows privilege skips); `git diff --check` clean
+- Human intervention: Human review required removal of the machine-local absolute path, normalization of the demo heading, and use of a platform-neutral pytest command. Awaiting commit, push, and PR approval.
+- Lesson: the `_SequentialPatchPreparer` was necessary because Patch B uses Patch A's result as its pre-image (`-return 1` → `+return 2`), and the `DefaultPatchPreparer`'s fixed snapshot (`return 0`) would cause a `ValueError("context mismatch")` in `prepare()`. The real `prepare()` function's context validation implicitly enforces correct patch ordering — if actions arrived out of order, the test would fail at preparation time, not at assertion time. This is stronger than a mock-sequencing assertion because it validates the semantic contract between patches.

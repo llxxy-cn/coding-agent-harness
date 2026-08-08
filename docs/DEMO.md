@@ -99,3 +99,15 @@ The same file also demonstrates RequestHuman pause, no-progress stop, unparseabl
 - A previous task cannot be found: use the same harness data root and the exact UUIDv4 printed by `run`.
 
 The demo does not contact a remote, fetch dependencies, delete worktrees, or modify the source fixture.
+
+## Feedback-Driven Action Change Scenario
+
+Run the focused mechanism test:
+
+```bash
+python -m pytest tests/e2e/test_mock_feedback_action_change.py -q
+```
+
+The test uses `ScriptedMockLLM` to drive two distinct `ApplyPatchAction` turns through `HarnessCore`. The first patch changes `return 0` to `return 1`; the forced full test returns FAILED. The sanitized failure summary (`"failed"`) enters the second LLM context as `feedback_summary`. `ScriptedMockLLM` then returns a different `ApplyPatchAction` that changes `return 1` to `return 2` — using Patch A's result as its pre-image. The second full test passes; `FeedbackEngine` returns `PASSED`; the task reaches `SUCCEEDED`.
+
+The test does not call a real Provider, keyring, SQLite database, Git remote, or user repository.
