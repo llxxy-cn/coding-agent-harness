@@ -107,3 +107,39 @@ The planned repository is `https://github.com/llxxy-cn/coding-agent-harness`. Th
 ### Subsequent Delivery Checkpoint — 2026-08-07
 
 The repository has been pushed, and the student-authored `REFLECTION.md` has been committed. Implementation candidate `99b615efa15de2bbda7234817b9d46e5e6d7cfb8` passed the `package-build`, `test (3.11)`, and `test (3.12)` jobs in `https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31180147117`. The pending statements immediately above remain as historical evidence of the earlier checkpoint. Tag creation, hosted Release creation, and asset publication are not claimed as complete before they are actually executed.
+
+---
+
+## Cold-Start Validation Evidence Supplement
+
+> **RETROSPECTIVE RECONSTRUCTION — not a contemporaneous record (2026-08-08):** This supplement records cold-start validation evidence observed during a 2026-08-08 read-only audit.
+
+- Cold-start sibling worktrees exist on `cold-start/*` branches at commit `acc003c`.
+- One worktree contains untracked Task 1/2 files — "observed during 2026-08-08 read-only audit, not preserved as committed evidence."
+- Gate status: **NOT RECORDED** — `PLAN.md` retained "NOT PASSED", implementation proceeded (from `f976cc2` onward), but no record of formal gate passage exists. Later implementation commits are evidence that work proceeded, not evidence that the gate formally passed.
+- No verbal approval is inferred and the gate is not characterized as intentionally bypassed.
+
+## PR #1 Merge Evidence
+
+- Task commit: `9be61dff3a15acdeb2899aea76ee9dd98b3efd4f`
+- Merge commit: `95c007806f232183677d1775535220fd122e67cd`
+- CI run URL: `https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31249036771`
+- CI result: 6 checks passed
+- Post-merge: local `main` fast-forwarded to `95c0078`, `feature/webui-v0.2.0` fast-forwarded to `main`, `v0.1.0` tag unchanged at `3e7b312`
+
+## A.6 Evidence Task Record
+
+- Test file: `tests/e2e/test_mock_feedback_action_change.py`
+- Behavior chain: Patch A (`return 0` → `return 1`) → full test FAILED → sanitized feedback "failed" enters the second LLM context → Patch B (`return 1` → `return 2`) → full test PASSED → TaskStatus.SUCCEEDED
+- Result: characterization/evidence pass (not Red)
+- Subagent task ID: `ses_020268b03ffeOKjUFRi4C7LIYb`
+- Stage 1 reviewer: `ses_0201fbfeaffe4gB7JPU7iAt1Vq` (PASS)
+- Stage 2 reviewer: `ses_020191f76ffe32ibddmdDmIkMP` (APPROVED)
+
+## Test Count Update Note
+
+> **RETROSPECTIVE RECONSTRUCTION — not a contemporaneous record (2026-08-08):** As of 2026-08-08, the full test suite count is 377 passed, 2 skipped (after adding the A.6 evidence test). The earlier "371 passed, 2 skipped, 0 warnings" record above remains as historical evidence of the earlier checkpoint and is not removed.
+
+## Retrospective Status Update
+
+> **RETROSPECTIVE RECONSTRUCTION — not a contemporaneous record (2026-08-08):** The earlier "remote CI: pending verification" and "hosted release: planned, not created" statements above are historical records from an earlier checkpoint. As of 2026-08-08, remote CI has passed (6 checks in `https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31249036771`) and the hosted release has been created (`v0.1.0` at `https://github.com/llxxy-cn/coding-agent-harness/releases/tag/v0.1.0`). The old statements are retained as historical evidence and are not removed.
