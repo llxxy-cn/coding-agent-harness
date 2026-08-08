@@ -116,6 +116,8 @@ flowchart LR
 
 **Current gate status: NOT PASSED — formal implementation remains frozen.** Task 1 focused success or Task 2 expected Red validates only its own layer and must not be reported as completion of the overall gate.
 
+> **RETROSPECTIVE RECONSTRUCTION — not a contemporaneous record (2026-08-08):** The cold-start review was conducted (evidence: untracked Task 1/2 files observed in cold-start sibling worktrees during a 2026-08-08 read-only audit, not preserved as committed evidence). However, the formal gate passage was never recorded in this plan. The "NOT PASSED" status above was retained. Later implementation commits (from `f976cc2` onward) are evidence that work proceeded, not evidence that the gate formally passed. The gate status must be characterized as **NOT RECORDED** — no verbal approval is inferred and the gate is not characterized as intentionally bypassed.
+
 **Official validation binding:**
 
 | Item | Frozen value / rule |
@@ -569,6 +571,52 @@ This section is authoritative for sequencing the remaining work in the current r
 - Milestone D local documentation, package artifacts, isolated-install checks, license, and CI definitions are prepared in the current uncommitted review set. Local CI configuration is testable; remote CI execution remains pending.
 - The confirmed course delivery route for this release is the CLI plus a hosted GitHub Release; a Web UI is not a submission blocker. Earlier atomic-task Web UI text remains for historical requirements traceability and is not a claim about the current delivery gate.
 - Task 18 is only complete for the current release's local package-build and CI-configuration subset. Task 19 is only complete for agent-owned documentation and license work; `REFLECTION.md` remains student-authored and pending. Task 20 has local Release Candidate evidence only; push, Tag creation, hosted Release creation, and asset upload remain pending explicit human action.
+
+### Retrospective Delivery Evidence Supplement
+
+> **RETROSPECTIVE RECONSTRUCTION — not a contemporaneous record (2026-08-08):** The following evidence was added retrospectively to supplement the Current Delivery Evidence above.
+
+**A.6 Feedback-Driven Action Change Evidence:**
+
+- Commit: `9be61dff3a15acdeb2899aea76ee9dd98b3efd4f`
+- Test file: `tests/e2e/test_mock_feedback_action_change.py`
+- Behavior chain: Patch A (`return 0` → `return 1`) → full test FAILED → sanitized feedback "failed" enters the second LLM context → Patch B (`return 1` → `return 2`) → full test PASSED → TaskStatus.SUCCEEDED
+- Result: characterization/evidence pass (not Red); focused 1 passed; full suite 377 passed, 2 skipped
+
+**PR #1 Merge Evidence:**
+
+- Branch: `task/a6-feedback-action-change` → `main`
+- Task commit: `9be61dff3a15acdeb2899aea76ee9dd98b3efd4f`
+- Merge commit: `95c007806f232183677d1775535220fd122e67cd` (merged via "Create a merge commit")
+- CI run URL: `https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31249036771`
+- CI result: 6 checks passed
+
+### Retrospective Task Completion Status
+
+> **RETROSPECTIVE RECONSTRUCTION — not a contemporaneous record (2026-08-08):** The following status table was determined by checking each Task's original acceptance criteria against the actual codebase — not by assuming completion from Milestone membership alone. Task detail checkboxes above are not modified; this section is an additive retrospective summary.
+
+| Task | Commit | Status | Notes |
+|---|---|---|---|
+| 1 | `f976cc2` | COMPLETED | Package skeleton and test gate |
+| 2 | `634712f` | COMPLETED | Domain models and strict action schema |
+| 3 | `fc12c5989b71975b280bdaa3d5ac6f6e7f70215c` | COMPLETED | Core port contracts |
+| 4 | `d176198` | COMPLETED | Frozen configuration and capabilities |
+| 5 | `10455b31ce60f18d1450aa42fb88393a79c785fc` | COMPLETED | Persistent state and secure artifacts |
+| 6 | `55b6186a3dfa6c95287b8b92d6f0c49d0d14e98d` | COMPLETED | Guarded filesystem and typed tools |
+| 7 | `ab5c23fc1cb58ddde32920e463b83413741b9270` | COMPLETED | Strict patch transactions |
+| 8 | `5de2d27dfb70ac606201b07a4c867aa8d4006549` | COMPLETED | Canonical policy and trust bindings |
+| 9 | `cd431e2a7482db28955f79a768c7b79d0aefc473` | COMPLETED | Bounded pytest execution |
+| 10 | `630ba9c02315b534addc0aa3a4a011815c9b7271` | COMPLETED AS PART OF MILESTONE A | Core feedback functionality exists and passes tests; planned filename absent: `test_normalize.py`, `tests/fixtures/pytest_outputs/` fixtures; equivalent evidence: `test_pytest_parser.py` covers pass/failure/collection_error/unparseable/truncated/environment_error, `test_engine.py` covers all FeedbackKind + fingerprint; remaining limitation: ANSI/path/time/temp-dir normalization not individually tested |
+| 11 | `7eff8038bdc7f15df8a3bcdfb215d93cb71ee6d8` | PARTIAL | Worktree and preflight exist; missing: `application/recovery.py`, `adapters/locking/file_lease.py`, `tests/integration/git/`, `tests/integration/locking/` |
+| 12 | `630ba9c02315b534addc0aa3a4a011815c9b7271` | COMPLETED AS PART OF MILESTONE A | Core memory/context functionality exists and passes tests; planned filename absent: `test_memory.py`, `tests/integration/sqlite/test_memory_repository.py`; equivalent evidence: `test_context.py` covers ContextBuilder determinism, redaction, bounded output; remaining limitation: memory persistence not individually tested |
+| 13 | `630ba9c02315b534addc0aa3a4a011815c9b7271` | COMPLETED AS PART OF MILESTONE A | ScriptedMockLLM, HarnessCore, budget, state machine exist and pass tests; planned filename absent: `test_budget.py`, `test_state_machine.py`; equivalent evidence: `test_harness.py` covers complete loop including budget limits and state transitions, `test_scripted_mock.py` covers Mock behavior; remaining limitation: budget and state machine not individually unit-tested |
+| 14 | `8aae4f6f962d877a9860de7412589fc55ff92e19` | COMPLETED AS PART OF MILESTONE C | Main chain runs E2E with real pytest; planned filename absent: `application/baseline.py`, `application/approvals.py`, `application/reporting.py`, `test_regression_rollback.py`, `test_approval_resume.py`, `test_real_pytest_chain.py`; equivalent evidence: baseline/approvals/reporting covered by `composition.py` and `service.py`, `test_cli_repair_demo.py` covers real pytest E2E, `test_cli_safety_scenarios.py` covers approval/resume; remaining limitation: regression rollback (Red step, not Completion criterion) not tested |
+| 15 | `7eff8038bdc7f15df8a3bcdfb215d93cb71ee6d8` | COMPLETED AS PART OF MILESTONE B | OpenAI adapter and credential store exist, contract tests pass; planned filename absent: `adapters/credentials/fake_store.py`, `tests/unit/security/test_outbound_context.py`; equivalent evidence: `test_credential_store.py` has own `FakeKeyringBackend`, `test_openai_client.py` covers single generation/redaction/no-retry, `test_context.py` covers redaction; remaining limitation: outbound context trust manifest not individually tested at OpenAI mock boundary |
+| 16 | `7eff8038bdc7f15df8a3bcdfb215d93cb71ee6d8` | PARTIAL | CLI complete; WebUI explicitly deferred (no `web/` directory in `src/`) |
+| 17 | `8aae4f6f962d877a9860de7412589fc55ff92e19` | PARTIAL | Mechanism demonstrations exist as e2e tests; missing: `src/coding_agent_harness/demo/` module, `demo_repos/` directory, `scripts/run_mechanism_demo.py` |
+| 18 | `99b615e`, `8b66fe2`, `105b9c9` | PARTIAL | Package build and CI definitions pass; Dockerfile and `.dockerignore` not created |
+| 19 | `105b9c9`, `2fd76ef` | PARTIAL | Documentation, license, and reflection exist; delivery tests pass; `scripts/check_course_delivery.py --preflight` not implemented — cannot prove "distinguish AI-owned artifacts from pending student-owned Reflection and report" completion criterion |
+| 20 | `3e7b312` | PARTIAL | Tag, Release, assets, Reflection, CI, local tests, and package build completed; image build, release manifest, `verify_release.py`, public demo deployment, and deployed scenario verification not completed; hosted GitHub Release URL exists, but no public application/demo deployment URL is recorded |
 
 ### Deferred Enhancements
 
