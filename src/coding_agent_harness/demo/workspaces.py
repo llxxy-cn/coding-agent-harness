@@ -38,6 +38,6 @@ def resolve_repository_template(name: str) -> Path:
                 entry.relative_to(root)
             except ValueError:
                 raise ValueError(
-                    "repository template contains a path escaping package root"
+                    "repository template contains a path that escapes package root"
                 ) from None
     return candidate
