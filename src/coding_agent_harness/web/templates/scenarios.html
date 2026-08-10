@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Demo scenarios · Coding Agent Harness{% endblock %}
+
+{% block content %}
+  <p>Select one of the fixed offline demo scenarios.</p>
+
+  {% for scenario in scenarios %}
+    {% if scenario.scenario_id == "feedback_success" %}
+      <section>
+        <h2>Feedback Success</h2>
+        <p>A fixed two-step repair demonstrates typed test feedback.</p>
+        <form method="post" action="/scenarios/feedback_success/runs" data-run-form>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">Run Feedback Success scenario</button>
+          <p data-submit-status aria-live="polite"></p>
+        </form>
+      </section>
+    {% elif scenario.scenario_id == "governance_denied" %}
+      <section>
+        <h2>Governance Denied</h2>
+        <p>A fixed protected-test change is denied by policy.</p>
+        <form method="post" action="/scenarios/governance_denied/runs" data-run-form>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">Run Governance Denied scenario</button>
+          <p data-submit-status aria-live="polite"></p>
+        </form>
+      </section>
+    {% elif scenario.scenario_id == "human_review_pause" %}
+      <section>
+        <h2>Human Review Pause</h2>
+        <p>A fixed high-impact action pauses for human review.</p>
+        <form method="post" action="/scenarios/human_review_pause/runs" data-run-form>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit">Run Human Review Pause scenario</button>
+          <p data-submit-status aria-live="polite"></p>
+        </form>
+      </section>
+    {% endif %}
+  {% endfor %}
+{% endblock %}
