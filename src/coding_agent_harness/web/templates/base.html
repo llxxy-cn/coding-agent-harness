@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'">
+    <title>{% block title %}Coding Agent Harness Demo{% endblock %}</title>
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <h1>Coding Agent Harness Demo</h1>
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

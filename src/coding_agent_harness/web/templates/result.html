@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Run result · Coding Agent Harness{% endblock %}
+
+{% block content %}
+  <h2>Run result</h2>
+  <p>Terminal status: {{ trace.terminal_status.value }}</p>
+  <ol aria-label="Execution trace">
+    {% for event in trace.events %}
+      <li>{{ trace.display_text(event) }}</li>
+    {% endfor %}
+  </ol>
+  <p><a href="/">Choose another fixed scenario</a></p>
+{% endblock %}
