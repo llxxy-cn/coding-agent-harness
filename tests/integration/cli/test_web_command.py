@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from click import unstyle
 from typer.testing import CliRunner
 
@@ -26,7 +27,14 @@ def test_web_help_describes_required_origin_and_network_options(monkeypatch) -> 
     assert result.exit_code == 0
     output = unstyle(result.output)
     assert "\x1b[" in result.output
-    for option in ("--origin", "--host", "--port", "--tls-cert", "--tls-key"):
+    for option in (
+        "--origin",
+        "--host",
+        "--port",
+        "--tls-cert",
+        "--tls-key",
+        "--behind-https-proxy",
+    ):
         assert option in output
 
 
@@ -68,6 +76,51 @@ def test_web_rejects_public_host_without_tls() -> None:
 
     assert result.exit_code != 0
     assert "public" in result.stdout.lower()
+
+
+def test_web_behind_https_proxy_allows_only_the_container_bind(monkeypatch) -> None:
+    captured = _capture_uvicorn(monkeypatch)
+
+    result = CliRunner().invoke(
+        build_cli(),
+        [
+            "web",
+            "--origin",
+            "https://demo.example.com",
+            "--host",
+            "0.0.0.0",
+            "--behind-https-proxy",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured["host"] == "0.0.0.0"
+    assert captured["workers"] == 1
+    assert captured["proxy_headers"] is False
+    assert "ssl_certfile" not in captured and "ssl_keyfile" not in captured
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    (
+        ["--host", "127.0.0.1", "--behind-https-proxy"],
+        [
+            "--host",
+            "0.0.0.0",
+            "--behind-https-proxy",
+            "--tls-cert",
+            "cert.pem",
+            "--tls-key",
+            "key.pem",
+        ],
+    ),
+)
+def test_web_rejects_invalid_behind_https_proxy_combinations(arguments) -> None:
+    result = CliRunner().invoke(
+        build_cli(), ["web", "--origin", "https://demo.example.com", *arguments]
+    )
+
+    assert result.exit_code != 0
 
 
 def test_web_rejects_invalid_host_and_port() -> None:

@@ -640,6 +640,12 @@ This section is authoritative for sequencing the remaining work in the current r
 
 The candidate must build a wheel and sdist, exclude top-level development documentation/tests, Git metadata, caches, and sensitive files, then install the new wheel with `--force-reinstall` in a fresh temporary venv. Verification requires `importlib.metadata.version("coding-agent-harness") == "0.2.1"`, fixed package-resource reads, `coding-agent-harness --help`, `coding-agent-harness web --help`, delivery pytest, and the full pytest suite. This work does not commit, push, open a PR, move/delete/rebuild `v0.2.0`, create a tag, or create a hosted Release.
 
+### 2026-08-11 — Deployment Stage 3A: Single-instance Proxy Docker Image
+
+**Scope:** Add only a local OCI build/run contract for the fixed offline WebUI behind Cloud Run or Render TLS termination. The image is wheel-based, uses runtime UID/GID `10001:10001`, disables bytecode writes, exposes `8000`, and requires a writable `/tmp` mount. The CLI accepts `--behind-https-proxy` only with canonical HTTPS `--origin`, `--host 0.0.0.0`, no local TLS options, one Uvicorn worker, and `proxy_headers=False`. This declaration never trusts `Forwarded` or `X-Forwarded-*`; raw canonical Host, Origin, and CSRF validation are unchanged. `GET /healthz` is a fixed cookie-free, scenario-free liveness endpoint.
+
+**Verification boundary:** GitLab `docker-build` builds and runs the image with read-only rootfs, tmpfs `/tmp`, dropped capabilities, and `no-new-privileges`; it checks non-root image metadata, health, CSRF cookie attributes, canonical Host/Origin success, rejection of `Origin: null` and wrong Host, and one fixed scenario. It does not push, scan, or deploy. This stage must remain one instance because the demo run lock is process-local. No public cloud deployment, Registry publication, CI result, Tag, Release, commit, or PR is implied.
+
 ### Deferred Enhancements
 
 The following are outside the current release and remain traceable to their original Task text where applicable:

@@ -107,6 +107,26 @@ def test_get_lists_fixed_scenarios_and_sets_secure_csrf_cookie(client: TestClien
     assert hidden.group(1) == _csrf_token(response)
 
 
+def test_healthz_is_cookie_free_and_does_not_touch_demo_dependencies() -> None:
+    class ExplodingRegistry:
+        def __iter__(self):
+            raise AssertionError("health check must not list scenarios")
+
+    service = RecordingRunService()
+    app = create_demo_app(
+        web_settings=WebSettings(canonical_origin="https://demo.example.com"),
+        scenario_registry=ExplodingRegistry(),  # type: ignore[arg-type]
+        run_service=service,
+    )
+    with TestClient(app, base_url="https://demo.example.com") as health_client:
+        response = health_client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.text == "ok"
+    assert "set-cookie" not in response.headers
+    assert service.calls == []
+
+
 def test_valid_post_calls_service_after_security_checks(
     client: TestClient, run_service: RecordingRunService
 ) -> None:

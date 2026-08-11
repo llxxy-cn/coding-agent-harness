@@ -130,7 +130,15 @@ The command requires a canonical HTTPS origin. A loopback bind can be used for l
 .\.venv\Scripts\coding-agent-harness.exe web --origin https://demo.example.test --host 127.0.0.1 --port 8000
 ```
 
-For a non-loopback bind, provide both `--tls-cert` and `--tls-key`. The command runs one unproxied Uvicorn worker and does not trust forwarding headers. No public HTTPS URL is currently recorded for this project; do not treat a localhost or loopback listener as one.
+For a non-loopback bind, provide both `--tls-cert` and `--tls-key`. A container behind a platform TLS terminator must instead explicitly declare that boundary and bind only its internal listener:
+
+```text
+coding-agent-harness web --origin https://demo.example.com --host 0.0.0.0 --port 8000 --behind-https-proxy
+```
+
+`--behind-https-proxy` is mutually exclusive with local TLS options and only accepts `--host 0.0.0.0`. It does not enable Uvicorn proxy headers or trust `Forwarded` / `X-Forwarded-*`; canonical raw `Host`, raw `Origin`, and CSRF checks remain authoritative. Configure Cloud Run or Render with the public canonical origin as an explicit command argument, one instance, and container port `8000` (or pass its assigned port explicitly). The platform proxy must send the canonical `Host` upstream and the application must not be directly reachable over the Internet.
+
+`GET /healthz` returns only `ok`; it creates no CSRF cookie and runs no scenario. It is suitable for container liveness checks. No public HTTPS URL is currently recorded for this project; do not treat a localhost or loopback listener as one.
 
 ## Offline Demo
 
@@ -192,7 +200,7 @@ The v0.2.0 WebUI resources are included in the source tree and have distribution
 
 GitHub Actions defines Python 3.11/3.12 tests and a package-build job. Earlier recorded GitHub evidence is linked above; the v0.2.0 commit history also records local full-suite and focused WebUI verification. `.gitlab-ci.yml` contains a `unit-test` job and a `package-build` job. Its commands can be run locally, but no NJU GitLab pipeline result is recorded, so this project does not claim that GitLab CI has passed.
 
-Docker/OCI delivery is incomplete: there is no `Dockerfile`, `.dockerignore`, or GitLab `docker-build` job. A public HTTPS WebUI deployment and its three-scenario smoke test are also incomplete; no public application URL is recorded.
+Docker/OCI delivery includes a wheel-based, non-root image and a GitLab `docker-build` job. The job builds the image and runs a local restricted smoke (`--read-only`, tmpfs `/tmp`, dropped capabilities, no-new-privileges) without pushing or scanning. Its remote GitLab result is not recorded. No image registry publication, public HTTPS WebUI deployment, public application URL, or deployed-scenario evidence is claimed.
 
 ## Cleanup
 
@@ -221,4 +229,4 @@ See [LICENSE](LICENSE) for the standard terms. Third-party dependencies are not 
 - Process controls are bounded local execution, not a production-grade OS sandbox.
 - Two symlink-security tests may skip on Windows when the account lacks symlink privilege.
 - `0.2.1` is a local release candidate for the v0.2.0 package-metadata consistency repair; no v0.2.1 tag, hosted Release, registry publication, or public deployment is claimed.
-- Docker/OCI image delivery, a GitLab `docker-build` job, and a public HTTPS WebUI deployment are not complete.
+- No image registry publication, remote GitLab `docker-build` result, or public HTTPS WebUI deployment is claimed. The image requires a writable `/tmp` tmpfs for its fixed worker runs and remains single-instance only.

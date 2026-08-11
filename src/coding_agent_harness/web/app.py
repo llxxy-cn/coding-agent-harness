@@ -238,6 +238,11 @@ def create_demo_app(
         response.headers["Content-Security-Policy"] = _CSP
         return response
 
+    @app.get("/healthz", response_class=PlainTextResponse)
+    async def healthz() -> PlainTextResponse:
+        """Return a fixed liveness response without touching demo state."""
+        return PlainTextResponse("ok")
+
     @app.get("/", response_class=HTMLResponse)
     async def list_scenarios() -> HTMLResponse:
         csrf_token = generate_csrf_nonce()
