@@ -43,6 +43,7 @@ RUNTIME_DEPENDENCIES = (
 FORBIDDEN_MEMBER_PARTS = (".git", ".pytest_cache", ".ruff_cache", "__pycache__")
 FORBIDDEN_DEVELOPMENT_ROOTS = (
     "tests",
+    "docs",
     ".github",
     ".gitlab-ci.yml",
     "AGENT_LOG.md",

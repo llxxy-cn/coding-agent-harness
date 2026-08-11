@@ -6,7 +6,7 @@ Coding Agent Harness is a governed local agent for making bounded changes to tru
 
 The delivered core does not use LangChain AgentExecutor, AutoGen, CrewAI, LlamaIndex Agent, the OpenAI Agents SDK, or another packaged agent loop. The OpenAI adapter performs one Responses API call; `HarnessCore` owns orchestration.
 
-The source package metadata currently declares version `0.1.0`. The repository also has annotated tag `v0.2.0` at `34db102`, which adds the fixed offline WebUI; the student confirms that v0.2.0 was published. This is a version-consistency defect: this README does not relabel the package, create a replacement tag, or claim a matching v0.2.0 package artifact. Implementation candidate `99b615efa15de2bbda7234817b9d46e5e6d7cfb8` passed the `package-build`, `test (3.11)`, and `test (3.12)` jobs in [GitHub Actions run 31180147117](https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31180147117).
+The current source package metadata declares version `0.2.1`. It is a release candidate that fixes the package-metadata inconsistency in the published `v0.2.0` state without moving, deleting, or rebuilding `v0.2.0`. This candidate does not create a tag, hosted Release, or claim a matching published package artifact. Implementation candidate `99b615efa15de2bbda7234817b9d46e5e6d7cfb8` passed the `package-build`, `test (3.11)`, and `test (3.12)` jobs in [GitHub Actions run 31180147117](https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31180147117).
 
 Repository: https://github.com/llxxy-cn/coding-agent-harness
 
@@ -46,7 +46,7 @@ Build and install the wheel locally:
 ```powershell
 .\.venv\Scripts\python.exe -m build --no-isolation
 py -3.12 -m venv .verify-venv
-.\.verify-venv\Scripts\python.exe -m pip install dist\coding_agent_harness-0.1.0-py3-none-any.whl
+.\.verify-venv\Scripts\python.exe -m pip install --force-reinstall dist\coding_agent_harness-0.2.1-py3-none-any.whl
 .\.verify-venv\Scripts\coding-agent-harness.exe --help
 ```
 
@@ -184,9 +184,9 @@ The supported local artifact is a universal Python wheel plus source distributio
 .\.venv\Scripts\python.exe -m build --no-isolation
 ```
 
-The console entry point is `coding-agent-harness = coding_agent_harness.cli.app:main`. Release contents and local evidence are summarized in [RELEASE_NOTES.md](RELEASE_NOTES.md). The canonical `v0.1.0` GitHub Release page is the authoritative source for whether the audited wheel and sdist are currently available.
+The console entry point is `coding-agent-harness = coding_agent_harness.cli.app:main`. Release contents and local evidence are summarized in [RELEASE_NOTES.md](RELEASE_NOTES.md). The canonical `v0.1.0` GitHub Release page remains the authoritative source for that historical release's audited wheel and sdist.
 
-The v0.2.0 WebUI resources are included in the source tree and have distribution-resource tests, but this checkout has no `dist/` directory containing a v0.2.0 wheel or sdist. Because `pyproject.toml` remains at `0.1.0`, do not infer that a package built from this checkout is a v0.2.0 artifact.
+The v0.2.0 WebUI resources are included in the source tree and have distribution-resource tests. This checkout's `0.2.1` build is a release candidate solely for correcting the package metadata mismatch; it does not alter the historical v0.2.0 tag or Release.
 
 ## CI and Delivery Status
 
@@ -220,5 +220,5 @@ See [LICENSE](LICENSE) for the standard terms. Third-party dependencies are not 
 - There is no parallel task execution or multi-agent coordination.
 - Process controls are bounded local execution, not a production-grade OS sandbox.
 - Two symlink-security tests may skip on Windows when the account lacks symlink privilege.
-- `v0.2.0` is inconsistent with `pyproject.toml` version `0.1.0`; resolving it requires a reviewed release plan rather than a metadata-only edit.
+- `0.2.1` is a local release candidate for the v0.2.0 package-metadata consistency repair; no v0.2.1 tag, hosted Release, registry publication, or public deployment is claimed.
 - Docker/OCI image delivery, a GitLab `docker-build` job, and a public HTTPS WebUI deployment are not complete.

@@ -634,6 +634,12 @@ This section is authoritative for sequencing the remaining work in the current r
 
 **Version-consistency defect:** the `v0.2.0` tag names a WebUI release state while `pyproject.toml` continues to declare project version `0.1.0`. This document records the mismatch only. Resolving it requires a separately reviewed version/release plan; this update neither changes package metadata nor creates or moves a tag or Release.
 
+### v0.2.1 Package-metadata Consistency Release Candidate — 2026-08-11
+
+`0.2.1` is the local release candidate for correcting the package-metadata inconsistency of the published `v0.2.0` state. Its only current-version authorities are `[project].version` in `pyproject.toml` and `coding_agent_harness.__version__`; both must be `0.2.1`. Historical v0.1.0 release notes, release URL, artifact names, and the annotated `v0.2.0` tag remain historical evidence and are not rewritten.
+
+The candidate must build a wheel and sdist, exclude top-level development documentation/tests, Git metadata, caches, and sensitive files, then install the new wheel with `--force-reinstall` in a fresh temporary venv. Verification requires `importlib.metadata.version("coding-agent-harness") == "0.2.1"`, fixed package-resource reads, `coding-agent-harness --help`, `coding-agent-harness web --help`, delivery pytest, and the full pytest suite. This work does not commit, push, open a PR, move/delete/rebuild `v0.2.0`, create a tag, or create a hosted Release.
+
 ### Deferred Enhancements
 
 The following are outside the current release and remain traceable to their original Task text where applicable:
