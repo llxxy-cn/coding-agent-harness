@@ -6,13 +6,15 @@ Coding Agent Harness is a governed local agent for making bounded changes to tru
 
 The delivered core does not use LangChain AgentExecutor, AutoGen, CrewAI, LlamaIndex Agent, the OpenAI Agents SDK, or another packaged agent loop. The OpenAI adapter performs one Responses API call; `HarnessCore` owns orchestration.
 
-Version 0.1.0 is the current Release candidate. It includes an offline deterministic demonstration and one real-provider adapter. Implementation candidate `99b615efa15de2bbda7234817b9d46e5e6d7cfb8` passed the `package-build`, `test (3.11)`, and `test (3.12)` jobs in [GitHub Actions run 31180147117](https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31180147117).
+The source package metadata currently declares version `0.1.0`. The repository also has annotated tag `v0.2.0` at `34db102`, which adds the fixed offline WebUI; the student confirms that v0.2.0 was published. This is a version-consistency defect: this README does not relabel the package, create a replacement tag, or claim a matching v0.2.0 package artifact. Implementation candidate `99b615efa15de2bbda7234817b9d46e5e6d7cfb8` passed the `package-build`, `test (3.11)`, and `test (3.12)` jobs in [GitHub Actions run 31180147117](https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31180147117).
 
 Repository: https://github.com/llxxy-cn/coding-agent-harness
 
 Canonical v0.1.0 Release URL: https://github.com/llxxy-cn/coding-agent-harness/releases/tag/v0.1.0
 
-The GitHub Release page is the authoritative source for current Tag, hosted Release, and asset availability. This document does not claim that Tag creation, hosted Release creation, or asset upload has occurred before GitHub reports it there.
+v0.2.0 tag/release URL: https://github.com/llxxy-cn/coding-agent-harness/releases/tag/v0.2.0
+
+The GitHub Release page is the authoritative source for tag, hosted-release, and asset availability. The repository checkout does not retain a v0.2.0 `dist/` artifact inventory, so asset availability must be checked on that page before relying on it.
 
 ## Features
 
@@ -111,11 +113,24 @@ Read or resume a persisted task using the canonical UUIDv4 printed by `run`:
 ```text
 coding-agent-harness status TASK_ID
 coding-agent-harness resume TASK_ID
+coding-agent-harness web --help
 ```
 
 `--trust-repo` is an explicit assertion that the repository is trusted for the documented local processing and, in real mode, the bounded data sent to the configured provider. It does not disable preflight, worktree isolation, Policy, Approval, Trust binding, or workspace-drift checks.
 
 CLI output is intentionally small: canonical task ID, task status, and a safe summary. It does not print raw pytest output, credential material, internal database paths, or governed-worktree paths.
+
+## Fixed Offline WebUI
+
+v0.2.0 adds a fixed, offline WebUI with three predefined scenarios: feedback-driven repair, governance denial, and human-review pause. It does not accept a browser-supplied repository, prompt, Patch, command, provider mode, credential, or approval/resume decision.
+
+The command requires a canonical HTTPS origin. A loopback bind can be used for local development, but it is not a public deployment and normally needs a local HTTPS terminator whose canonical origin is supplied to the command:
+
+```powershell
+.\.venv\Scripts\coding-agent-harness.exe web --origin https://demo.example.test --host 127.0.0.1 --port 8000
+```
+
+For a non-loopback bind, provide both `--tls-cert` and `--tls-key`. The command runs one unproxied Uvicorn worker and does not trust forwarding headers. No public HTTPS URL is currently recorded for this project; do not treat a localhost or loopback listener as one.
 
 ## Offline Demo
 
@@ -171,6 +186,22 @@ The supported local artifact is a universal Python wheel plus source distributio
 
 The console entry point is `coding-agent-harness = coding_agent_harness.cli.app:main`. Release contents and local evidence are summarized in [RELEASE_NOTES.md](RELEASE_NOTES.md). The canonical `v0.1.0` GitHub Release page is the authoritative source for whether the audited wheel and sdist are currently available.
 
+The v0.2.0 WebUI resources are included in the source tree and have distribution-resource tests, but this checkout has no `dist/` directory containing a v0.2.0 wheel or sdist. Because `pyproject.toml` remains at `0.1.0`, do not infer that a package built from this checkout is a v0.2.0 artifact.
+
+## CI and Delivery Status
+
+GitHub Actions defines Python 3.11/3.12 tests and a package-build job. Earlier recorded GitHub evidence is linked above; the v0.2.0 commit history also records local full-suite and focused WebUI verification. `.gitlab-ci.yml` contains a `unit-test` job and a `package-build` job. Its commands can be run locally, but no NJU GitLab pipeline result is recorded, so this project does not claim that GitLab CI has passed.
+
+Docker/OCI delivery is incomplete: there is no `Dockerfile`, `.dockerignore`, or GitLab `docker-build` job. A public HTTPS WebUI deployment and its three-scenario smoke test are also incomplete; no public application URL is recorded.
+
+## Cleanup
+
+The harness intentionally retains generated worktrees and local verification environments for inspection. After preserving evidence you need, remove only the specific generated worktree, virtual environment, or build directory you created; never remove the source repository or an unresolved task workspace. No automatic cleanup command is provided.
+
+## AI Assistance
+
+Codex assisted with requirement analysis, implementation planning, code and test generation, debugging, and documentation organization. The student retained responsibility for requirements, architecture decisions, review, Git operations, publication authorization, and the personal reflection.
+
 ## License
 
 Coding Agent Harness is released under the MIT License.
@@ -189,4 +220,5 @@ See [LICENSE](LICENSE) for the standard terms. Third-party dependencies are not 
 - There is no parallel task execution or multi-agent coordination.
 - Process controls are bounded local execution, not a production-grade OS sandbox.
 - Two symlink-security tests may skip on Windows when the account lacks symlink privilege.
-- Tag creation, hosted Release creation, and asset upload remain separately authorized publication actions until they are reflected on the canonical GitHub Release page.
+- `v0.2.0` is inconsistent with `pyproject.toml` version `0.1.0`; resolving it requires a reviewed release plan rather than a metadata-only edit.
+- Docker/OCI image delivery, a GitLab `docker-build` job, and a public HTTPS WebUI deployment are not complete.

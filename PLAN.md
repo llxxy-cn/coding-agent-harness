@@ -618,6 +618,22 @@ This section is authoritative for sequencing the remaining work in the current r
 | 19 | `105b9c9`, `2fd76ef` | PARTIAL | Documentation, license, and reflection exist; delivery tests pass; `scripts/check_course_delivery.py --preflight` not implemented — cannot prove "distinguish AI-owned artifacts from pending student-owned Reflection and report" completion criterion |
 | 20 | `3e7b312` | PARTIAL | Tag, Release, assets, Reflection, CI, local tests, and package build completed; image build, release manifest, `verify_release.py`, public demo deployment, and deployed scenario verification not completed; hosted GitHub Release URL exists, but no public application/demo deployment URL is recorded |
 
+### v0.2.0 Status Supplement — 2026-08-11
+
+> This supplement is based on the local Git history through annotated tag `v0.2.0` (`34db102d567febd415a0d86ed62dea8aefda9d01`). It updates the delivery status without rewriting the historical retrospective table above. It does not treat a local tag, local test result, or loopback listener as evidence of an OCI image, a GitLab pipeline, or a public HTTPS deployment.
+
+| Item | Evidence commit(s) | Current status | Evidence boundary |
+|---|---|---|---|
+| Original Task 16 local-WebUI scope | `7eff8038bdc7f15df8a3bcdfb215d93cb71ee6d8` | **已替代/未实施** | The original Task 16 recorded a CLI-only delivery and deferred its WebUI. The later fixed offline WebUI is governed by `docs/superpowers/plans/2026-08-09-webui-v0.2.0-implementation.md`, not retroactively marked as completion of the original atomic Task. |
+| Original Task 17 public-WebUI scope | `8aae4f6f962d877a9860de7412589fc55ff92e19` | **已替代/未实施** | The original public demo/deployment plan was superseded by the fixed offline v0.2.0 WebUI plan. No OCI image, public HTTPS URL, or deployed scenario evidence is recorded. |
+| v0.2.0 fixed offline WebUI | `e828b153`, `dd43bba`, `fcdca69`, `0f18c58`, `625a1b1`, `30e45b5`, `1035782`, `370ac49`, `47aa9e9`, `0f6945a`, `34db102` | IMPLEMENTED LOCALLY | Typed traces, fixed scenarios, application security, pages, supervised run service, packaged resources, CLI entry point, and the browser-Origin fix were merged through PRs #6–#16. The annotated tag points at PR #16 merge `34db102`. This is an offline WebUI implementation, not a deployment claim. |
+| Browser Origin regression fix | `e35527fe0ae21f36bfd8f023ad3baa2d0e0d1421`, merged as `34db102` | IMPLEMENTED LOCALLY | The commit records focused 8 passed, web integration 123 passed/1 skipped, full 658 passed/7 skipped, and browser smoke of the three fixed scenarios. It preserves strict Origin/Host/CSRF checks; it does not prove a public service. |
+| Task 18 Docker/CI contract | `99b615e`, `0f6945a`; current CI repair uncommitted | PARTIAL | The GitLab `unit-test` and matching GitHub test job explicitly use the preinstalled build backend (`pip install --no-build-isolation -e ".[dev]"`); the local equivalent passed 658 tests with 7 skips. `Dockerfile`, `.dockerignore`, and GitLab `docker-build` are absent; no remote GitLab pipeline result is recorded. |
+| Task 19 documentation | `105b9c9`, `0f6945a`; current document updates uncommitted | PARTIAL | README/process evidence and student-owned Reflection exist. The requested current status corrections remain in the working tree pending human review and must not be cited as a commit hash yet. |
+| Task 20 publication/deployment | `3e7b312`, `34db102` | PARTIAL | `v0.2.0` is the current annotated local tag. `pyproject.toml` still declares `0.1.0`, which is a version-consistency defect. No local `dist/` artifact for v0.2.0, OCI image, public HTTPS WebUI, or deployed smoke-test evidence is recorded. |
+
+**Version-consistency defect:** the `v0.2.0` tag names a WebUI release state while `pyproject.toml` continues to declare project version `0.1.0`. This document records the mismatch only. Resolving it requires a separately reviewed version/release plan; this update neither changes package metadata nor creates or moves a tag or Release.
+
 ### Deferred Enhancements
 
 The following are outside the current release and remain traceable to their original Task text where applicable:

@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 BUILD_TOOLS = 'python -m pip install "setuptools>=68,<69" "wheel>=0.42,<1" "build>=1.5,<1.6"'
+EDITABLE_INSTALL = 'python -m pip install --no-build-isolation -e ".[dev]"'
 
 
 def content(relative: str) -> str:
@@ -49,7 +50,7 @@ def test_github_actions_runs_matrix_tests_and_package_build_without_live_service
     assert "actions/checkout@v4" in workflow
     assert "actions/setup-python@v5" in workflow
     assert BUILD_TOOLS in test_job
-    assert 'python -m pip install -e ".[dev]"' in workflow
+    assert EDITABLE_INSTALL in test_job
     assert "python -m pytest -q" in workflow
     assert "package-build:" in workflow
     assert BUILD_TOOLS in package_build_job
@@ -72,7 +73,7 @@ def test_gitlab_ci_has_exact_unit_test_and_package_build_jobs() -> None:
     assert re.search(r"(?m)^package-build:$", pipeline)
     assert "python:3.12" in pipeline
     assert BUILD_TOOLS in unit_test_job
-    assert 'python -m pip install -e ".[dev]"' in pipeline
+    assert EDITABLE_INSTALL in unit_test_job
     assert "python -m pytest -q" in pipeline
     assert BUILD_TOOLS in package_build_job
     assert "python -m build --no-isolation" in pipeline
