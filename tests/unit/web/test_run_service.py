@@ -366,16 +366,28 @@ def test_cleanup_failure_overrides_success_and_releases_lock_last(
     lock.release()
 
 
-def test_default_cleanup_removes_read_only_request_artifacts(tmp_path: Path) -> None:
-    """Read-only worker artifacts must not turn an otherwise valid run into cleanup_failed."""
+def test_default_cleanup_removes_read_only_directories_and_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Read-only request directories and files must be removed on every platform."""
+    chmod_calls: dict[Path, list[int]] = {}
+    original_chmod = Path.chmod
+
+    def record_chmod(path: Path, mode: int, **kwargs: object) -> None:
+        chmod_calls.setdefault(path, []).append(mode)
+        original_chmod(path, mode, **kwargs)
+
+    monkeypatch.setattr(Path, "chmod", record_chmod)
 
     def factory(command: Sequence[str], **kwargs: object) -> FakeProcessBoundary:
         result_path = Path(command[command.index("--result") + 1])
         result_path.write_bytes(_valid_result_bytes("human_review_pause"))
-        readonly = result_path.parent / "data" / "worker-readonly.txt"
+        data_directory = result_path.parent / "data"
+        readonly = data_directory / "worker-readonly.txt"
         readonly.write_bytes(b"worker artifact")
         readonly.chmod(stat.S_IREAD)
-        result_path.parent.joinpath("data").chmod(stat.S_IREAD)
+        data_directory.chmod(stat.S_IREAD)
         result_path.parent.joinpath("cwd").chmod(stat.S_IREAD)
         return FakeProcessBoundary()
 
@@ -384,6 +396,15 @@ def test_default_cleanup_removes_read_only_request_artifacts(tmp_path: Path) -> 
 
     assert view.events
     assert not tuple(tmp_path.iterdir())
+    directory_mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
+    for directory_name in ("data", "cwd"):
+        assert (
+            chmod_calls[
+                next(path for path in chmod_calls if path.name == directory_name)
+            ][-1]
+            & directory_mode
+            == directory_mode
+        )
 
 
 def test_default_cleanup_rejects_symlink_components(tmp_path: Path) -> None:

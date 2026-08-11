@@ -660,13 +660,23 @@ class DemoRunService:
         if not root.is_dir():
             raise OSError("request root is not a real directory")
 
+        def restore_owner_access(path: Path, *, directory: bool) -> None:
+            mode = path.stat(follow_symlinks=False).st_mode
+            owner_access = stat.S_IRUSR | stat.S_IWUSR
+            if directory:
+                owner_access |= stat.S_IXUSR
+            if os.chmod in os.supports_follow_symlinks:
+                os.chmod(path, mode | owner_access, follow_symlinks=False)
+            else:
+                path.chmod(mode | owner_access)
+
         def remove(path: Path) -> None:
             if path.is_symlink() or has_reparse_point(path):
                 raise OSError("reparse point in request tree")
             if path.is_dir():
                 # Restore directory write permission before opening/enumerating
                 # children; Windows otherwise rejects traversal of read-only dirs.
-                path.chmod(path.stat().st_mode | stat.S_IWRITE)
+                restore_owner_access(path, directory=True)
                 for child in path.iterdir():
                     if child.is_symlink() or has_reparse_point(child):
                         raise OSError("reparse point in request tree")
@@ -679,9 +689,9 @@ class DemoRunService:
                     except OSError:
                         if _attempt:
                             raise
-                        path.chmod(path.stat().st_mode | stat.S_IWRITE)
+                        restore_owner_access(path, directory=True)
             else:
-                path.chmod(path.stat().st_mode | stat.S_IWRITE)
+                restore_owner_access(path, directory=False)
                 for _attempt in range(2):
                     try:
                         path.unlink()
@@ -689,7 +699,7 @@ class DemoRunService:
                     except OSError:
                         if _attempt:
                             raise
-                        path.chmod(path.stat().st_mode | stat.S_IWRITE)
+                        restore_owner_access(path, directory=False)
 
         remove(root)
 
