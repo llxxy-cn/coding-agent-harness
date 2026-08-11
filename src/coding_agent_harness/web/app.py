@@ -15,7 +15,8 @@ from typing import Protocol
 from urllib.parse import parse_qsl, urlparse
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
 from coding_agent_harness.demo.scenarios import ScenarioRegistry
@@ -41,6 +42,18 @@ _HOSTNAME_PATTERN = re.compile(
 _IPV6_AUTHORITY_PATTERN = re.compile(r"\[([0-9A-Fa-f:.]+)\](?::([0-9]+))?\Z")
 _CSRF_NONCE_PATTERN = re.compile(r"[A-Za-z0-9_-]+\Z")
 _LOGGER = logging.getLogger(__name__)
+_TEMPLATES = Jinja2Templates(directory=str(Path(__file__).with_name("templates")))
+_RUN_SERVICE_ERROR_STATUSES = {
+    "timeout": 504,
+    "cleanup_failed": 500,
+    "trace_incomplete": 500,
+    "worker_lifecycle_invalid": 500,
+    "termination_unconfirmed": 500,
+    "internal": 500,
+}
+_RETAIN_REQUEST_ROOT_PARENT_ERRORS = frozenset(
+    {"cleanup_failed", "termination_unconfirmed"}
+)
 
 
 class RunServiceProtocol(Protocol):
@@ -88,9 +101,7 @@ def _is_valid_raw_authority(authority: str) -> bool:
         not authority
         or not authority.isascii()
         or authority != authority.strip()
-        or any(
-        character in authority for character in "/?#@"
-        )
+        or any(character in authority for character in "/?#@")
     ):
         return False
     if authority.startswith("["):
@@ -235,7 +246,7 @@ def create_demo_app(
         return response
 
     @app.post("/scenarios/{scenario_id}/runs")
-    async def start_scenario(scenario_id: str, request: Request) -> PlainTextResponse:
+    async def start_scenario(scenario_id: str, request: Request) -> Response:
         if scenario_id not in scenario_registry:
             return _security_response(404, "not_found")
         origin = _single_raw_header(request, "origin")
@@ -260,14 +271,36 @@ def create_demo_app(
         if cookie_token is None or not compare_csrf_nonce(form_token, cookie_token):
             return _security_response(403, "forbidden")
 
+        request_root_parent = Path(tempfile.mkdtemp(prefix="cah-web-run-"))
+        retain_request_root_parent = False
         try:
-            await run_in_threadpool(
-                run_service.run_scenario, scenario_id, Path(tempfile.gettempdir())
+            try:
+                trace = await run_in_threadpool(
+                    run_service.run_scenario, scenario_id, Path(request_root_parent)
+                )
+            except RunServiceBusyError:
+                return _security_response(503, "busy")
+            except Exception as error:  # noqa: BLE001 - this is the final HTTP boundary.
+                from .run_service import RunServiceError
+
+                if isinstance(error, RunServiceError):
+                    status_code = _RUN_SERVICE_ERROR_STATUSES.get(error.code)
+                    if status_code is not None:
+                        retain_request_root_parent = (
+                            error.code in _RETAIN_REQUEST_ROOT_PARENT_ERRORS
+                        )
+                        return _security_response(status_code, error.code)
+                return _security_response(500, "internal_error")
+            return _TEMPLATES.TemplateResponse(
+                request=request,
+                name="result.html",
+                context={"trace": trace},
             )
-        except RunServiceBusyError:
-            return _security_response(503, "busy")
-        except Exception:  # noqa: BLE001 - the public app boundary must sanitize all service failures.
-            return _security_response(500, "internal_error")
-        return PlainTextResponse("run_started", status_code=200)
+        finally:
+            if not retain_request_root_parent:
+                try:
+                    request_root_parent.rmdir()
+                except OSError:
+                    pass
 
     return app
