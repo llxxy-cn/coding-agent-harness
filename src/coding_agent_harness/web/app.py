@@ -232,7 +232,7 @@ def create_demo_app(
             response = await call_next(request)
         except Exception:  # noqa: BLE001 - this is the final sanitized HTTP boundary.
             response = _security_response(500, "internal_error")
-        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Referrer-Policy"] = "origin"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Content-Security-Policy"] = _CSP

@@ -1205,7 +1205,7 @@ pytest 使用固定 worktree cwd、`shell=False`、经验证的解释器、环�
 
 真实模式默认只监听 `127.0.0.1`，不允许 `0.0.0.0`。启动时用 `secrets` 生成高熵、一次、短期 Bootstrap Token；Token 通过 URL fragment 交给前端，再交换为短期 `HttpOnly`、`SameSite=Strict` Cookie。Token 不写日志、SQLite、命令历史或模型上下文，交换后立即失效。
 
-所有写入和审批请求验证 Session、CSRF、精确 Host、精确 Origin、HTTP 方法和 Content-Type；禁止通配 CORS，并设置 `Referrer-Policy: no-referrer`。这些浏览器安全字段不适用于 CLI。
+所有写入和审批请求验证 Session、CSRF、精确 Host、精确 Origin、HTTP 方法和 Content-Type；禁止通配 CORS，并设置 `Referrer-Policy: origin`，以便真实浏览器 POST 提供可验证的 canonical Origin，同时不泄露 URL path/query。这些浏览器安全字段不适用于 CLI。
 
 ### 14.5 公网演示
 
