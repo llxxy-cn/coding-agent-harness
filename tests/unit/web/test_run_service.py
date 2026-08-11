@@ -34,6 +34,118 @@ from coding_agent_harness.web.trace import (
 )
 
 
+def test_linux_process_group_with_only_zombies_is_terminated(
+    tmp_path: Path,
+) -> None:
+    """A reaping-delayed zombie cannot continue modifying the request root."""
+    proc_root = tmp_path / "proc"
+    proc_root.mkdir()
+    (proc_root / "101").mkdir()
+    (proc_root / "101" / "stat").write_text("101 (worker) Z 1 77 0 0 0")
+    (proc_root / "102").mkdir()
+    (proc_root / "102" / "stat").write_text("102 (child) Z 1 77 0 0 0")
+
+    assert (
+        process_boundary._linux_process_group_members_are_all_zombies(77, proc_root)
+        is True
+    )
+
+
+def test_linux_process_group_with_a_live_member_is_not_terminated(
+    tmp_path: Path,
+) -> None:
+    """Changing a zombie member to a runnable process must make confirmation fail."""
+    proc_root = tmp_path / "proc"
+    proc_root.mkdir()
+    (proc_root / "101").mkdir()
+    (proc_root / "101" / "stat").write_text("101 (worker) Z 1 77 0 0 0")
+    (proc_root / "102").mkdir()
+    (proc_root / "102" / "stat").write_text("102 (child) S 1 77 0 0 0")
+
+    assert (
+        process_boundary._linux_process_group_members_are_all_zombies(77, proc_root)
+        is False
+    )
+
+
+def test_posix_confirmation_waits_for_linux_group_member_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A just-killed descendant may be observed once before it reaches zombie state."""
+
+    class Process:
+        pid = 101
+
+    sleeps: list[float] = []
+    member_states = iter((False, True))
+    monkeypatch.setattr(process_boundary.os, "getpgid", lambda _pid: 77, raising=False)
+    monkeypatch.setattr(
+        process_boundary.os, "killpg", lambda _pgid, _signal: None, raising=False
+    )
+    monkeypatch.setattr(process_boundary.signal, "SIGKILL", 9, raising=False)
+    monkeypatch.setattr(process_boundary.sys, "platform", "linux")
+    monkeypatch.setattr(
+        process_boundary,
+        "_linux_process_group_members_are_all_zombies",
+        lambda _pgid: next(member_states),
+    )
+    monkeypatch.setattr(process_boundary.time, "monotonic", lambda: 10.0)
+    monkeypatch.setattr(process_boundary.time, "sleep", sleeps.append)
+    boundary = process_boundary.PosixProcessBoundary(Process())
+    boundary.terminate_tree()
+
+    assert boundary.confirm_termination() is True
+    assert sleeps == [0.01]
+
+
+def test_posix_confirmation_rejects_a_live_linux_group_member(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A descendant still able to execute must keep termination unconfirmed."""
+
+    class Process:
+        pid = 101
+
+    monkeypatch.setattr(process_boundary.os, "getpgid", lambda _pid: 77, raising=False)
+    monkeypatch.setattr(
+        process_boundary.os, "killpg", lambda _pgid, _signal: None, raising=False
+    )
+    monkeypatch.setattr(process_boundary.sys, "platform", "linux")
+    monkeypatch.setattr(
+        process_boundary,
+        "_linux_process_group_members_are_all_zombies",
+        lambda _pgid: False,
+    )
+
+    assert (
+        process_boundary.PosixProcessBoundary(Process()).confirm_termination() is False
+    )
+
+
+def test_non_linux_posix_confirmation_fails_closed_when_group_still_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without Linux /proc state, a surviving process group remains unsafe."""
+
+    class Process:
+        pid = 101
+
+    monkeypatch.setattr(process_boundary.os, "getpgid", lambda _pid: 77, raising=False)
+    monkeypatch.setattr(
+        process_boundary.os, "killpg", lambda _pgid, _signal: None, raising=False
+    )
+    monkeypatch.setattr(process_boundary.sys, "platform", "darwin")
+    monkeypatch.setattr(
+        process_boundary,
+        "_linux_process_group_members_are_all_zombies",
+        lambda _pgid: pytest.fail("non-Linux POSIX must not inspect /proc"),
+    )
+
+    assert (
+        process_boundary.PosixProcessBoundary(Process()).confirm_termination() is False
+    )
+
+
 def _valid_result_bytes(scenario_id: str) -> bytes:
     scenario = ScenarioRegistry().get(scenario_id)
     events = (

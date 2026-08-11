@@ -8,7 +8,45 @@ import subprocess
 import sys
 import time
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Protocol
+
+_POSIX_TERMINATION_RECOVERY_SECONDS = 0.1
+
+
+def _linux_process_group_members_are_all_zombies(
+    pgid: int, proc_root: Path = Path("/proc")
+) -> bool | None:
+    """Return whether Linux can prove every remaining group member is a zombie."""
+    try:
+        entries = tuple(proc_root.iterdir())
+    except OSError:
+        return None
+
+    found_member = False
+    for entry in entries:
+        if not entry.name.isdecimal():
+            continue
+        try:
+            stat = (entry / "stat").read_text(encoding="utf-8")
+        except FileNotFoundError:
+            continue
+        except OSError:
+            return None
+        try:
+            closing_parenthesis = stat.rfind(")")
+            if closing_parenthesis < 0:
+                return None
+            fields = stat[closing_parenthesis + 1 :].split()
+            state, process_group = fields[0], int(fields[2])
+        except (IndexError, ValueError):
+            return None
+        if process_group != pgid:
+            continue
+        found_member = True
+        if state != "Z":
+            return False
+    return True if found_member else None
 
 
 class ProcessBoundary(Protocol):
@@ -35,6 +73,7 @@ class PosixProcessBoundary:
     def __init__(self, process: subprocess.Popen[bytes]) -> None:
         self._process = process
         self._pgid = os.getpgid(process.pid)
+        self._termination_recovery_deadline: float | None = None
 
     def wait(self, deadline: float) -> int | None:
         try:
@@ -43,19 +82,34 @@ class PosixProcessBoundary:
             return None
 
     def confirm_termination(self) -> bool:
-        try:
-            os.killpg(self._pgid, 0)
-        except ProcessLookupError:
-            return True
-        except OSError:
-            return False
-        return False
+        while True:
+            try:
+                os.killpg(self._pgid, 0)
+            except ProcessLookupError:
+                return True
+            except OSError:
+                return False
+
+            if sys.platform != "linux":
+                return False
+            if _linux_process_group_members_are_all_zombies(self._pgid) is True:
+                return True
+
+            deadline = self._termination_recovery_deadline
+            remaining = 0.0 if deadline is None else deadline - time.monotonic()
+            if remaining <= 0.0:
+                return False
+            time.sleep(min(0.01, remaining))
 
     def terminate_tree(self) -> None:
         try:
             os.killpg(self._pgid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+        else:
+            self._termination_recovery_deadline = (
+                time.monotonic() + _POSIX_TERMINATION_RECOVERY_SECONDS
+            )
 
     def wait_for_root(self, timeout_seconds: float) -> bool:
         try:
