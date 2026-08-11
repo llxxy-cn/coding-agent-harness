@@ -162,6 +162,10 @@ there are no business fields in the request body. The server validates the
 fixed scenario path, CSRF nonce, Origin, and Host before creating run
 resources.
 
+Responses and the page metadata set `Referrer-Policy: origin`. This lets a
+real browser submit the canonical Origin required by the strict POST check
+while disclosing only the origin, never a URL path or query.
+
 For local automated checks, the Web UI is exercised in-process using FastAPI
 `TestClient` with an HTTPS `base_url`; no listening server is required:
 

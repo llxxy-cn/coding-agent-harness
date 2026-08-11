@@ -242,7 +242,7 @@ def test_base_page_declares_csp_and_referrer_contract_without_inline_script() ->
     assert 'http-equiv="Content-Security-Policy"' in page
     assert "default-src 'self'" in page
     assert "frame-ancestors 'none'" in page
-    assert 'name="referrer" content="no-referrer"' in page
+    assert 'name="referrer" content="origin"' in page
     assert 'src="/static/app.js"' in page
     assert "<script>" not in page
 

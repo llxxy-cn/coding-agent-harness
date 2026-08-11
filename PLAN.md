@@ -856,7 +856,7 @@ These deferred enhancements do not remove or redefine any course grading require
 
 - [ ] **Red:** CLI tests assert interactive trust is not preselected, noninteractive execution needs `--trust-repo`, provider/data categories are shown, approval uses local prompt (no CSRF fields), and key status never prints Key.
 - [ ] Web tests assert bind host rejects non-`127.0.0.1`, bootstrap token is high-entropy/short-lived/one-use, URL fragment exchange yields short-lived HttpOnly SameSite=Strict cookie, and token never appears in logs/SQLite.
-- [ ] Test all writes/approvals require Session, CSRF, exact Host/Origin, method and content type; wildcard CORS is absent and Referrer-Policy is `no-referrer`.
+- [ ] Test all writes/approvals require Session, CSRF, exact Host/Origin, method and content type; wildcard CORS is absent and Referrer-Policy is `origin` so real browser POSTs provide the canonical Origin without leaking URL path/query.
 - [ ] Test pages show config provenance, risk, diff redacted view, Action hash, approval state, budgets, timeline and report; approved Action does not execute until separate Resume.
 - [ ] Run `python -m pytest tests/integration/cli tests/integration/web -q`. **Expected:** missing CLI/Web modules and entry point.
 - [ ] **Green:** Implement thin CLI/routes over injected ApplicationService; add minimal accessible server-rendered Open Design-aligned templates and bundled script without CDN.

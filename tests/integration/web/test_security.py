@@ -133,6 +133,7 @@ def test_host_normalization_accepts_case_and_default_https_port(
 @pytest.mark.parametrize(
     "origin",
     (
+        "null",
         "https://DEMO.EXAMPLE.COM",
         "https://demo.example.com:443",
         "https://demo.example.com/",
@@ -383,7 +384,7 @@ def test_security_headers_apply_to_fail_closed_response(client: TestClient) -> N
     response = client.post("/scenarios/not-fixed/runs")
 
     assert response.status_code == 404
-    assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["referrer-policy"] == "origin"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert "default-src 'self'" in response.headers["content-security-policy"]
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
@@ -509,7 +510,7 @@ def test_unexpected_route_error_is_sanitized_and_has_security_headers() -> None:
 
     assert response.status_code == 500
     assert response.text == "internal_error"
-    assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["referrer-policy"] == "origin"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert service.calls == []
 
