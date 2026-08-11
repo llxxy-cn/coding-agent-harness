@@ -1,4 +1,7 @@
 include README.md
 include RELEASE_NOTES.md
 include src/coding_agent_harness/adapters/sqlite/schema.sql
-recursive-include docs *.md
+include docs/ARCHITECTURE.md
+include docs/DEMO.md
+prune docs/assignment
+prune docs/superpowers

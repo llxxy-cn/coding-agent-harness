@@ -111,3 +111,63 @@ python -m pytest tests/e2e/test_mock_feedback_action_change.py -q
 The test uses `ScriptedMockLLM` to drive two distinct `ApplyPatchAction` turns through `HarnessCore`. The first patch changes `return 0` to `return 1`; the forced full test returns FAILED. The sanitized failure summary (`"failed"`) enters the second LLM context as `feedback_summary`. `ScriptedMockLLM` then returns a different `ApplyPatchAction` that changes `return 1` to `return 2` — using Patch A's result as its pre-image. The second full test passes; `FeedbackEngine` returns `PASSED`; the task reaches `SUCCEEDED`.
 
 The test does not call a real Provider, keyring, SQLite database, Git remote, or user repository.
+
+## Web UI v0.2.0 Demo
+
+The Web UI is a fixed, offline, deterministic demonstration. It serves exactly
+three scenarios: `feedback_success`, `governance_denied`, and
+`human_review_pause`. Their repositories, task descriptions, and scripted
+actions are fixed in the package; the browser cannot submit an arbitrary
+repository, prompt, or action. Runs use `ScriptedMockLLM`, so the Web UI does
+not use a Provider, keyring, or Git remote.
+
+Start it with a canonical HTTPS origin. `--origin` is required and must be an
+HTTPS origin; it declares the origin used for request validation and does not
+itself create TLS.
+
+```powershell
+.\.venv\Scripts\coding-agent-harness.exe web --origin https://demo.example.com --host 127.0.0.1 --port 8000
+```
+
+The server always uses one Uvicorn worker. Each run is synchronous, with a
+global concurrency limit of one and a 60-second request deadline.
+
+### HTTPS Deployment Boundary
+
+For HTTPS termination at a reverse proxy, bind the application only to a
+loopback or private interface. The proxy must preserve the original `Host`
+header:
+
+```powershell
+.\.venv\Scripts\coding-agent-harness.exe web --origin https://demo.example.com --host 127.0.0.1 --port 8000
+```
+
+The application does not trust `Forwarded` or any `X-Forwarded-*` header.
+Do not use those headers to make the application believe a request was HTTPS
+or targeted a different host.
+
+For a direct public bind, supply both TLS files. Startup rejects a public bind
+without the complete certificate/key pair:
+
+```powershell
+.\.venv\Scripts\coding-agent-harness.exe web --origin https://demo.example.com --host 0.0.0.0 --port 8443 --tls-cert cert.pem --tls-key key.pem
+```
+
+### Request Safety and Local Testing
+
+`GET /` issues a Secure, HttpOnly, SameSite=Strict `__Host-cah_csrf` cookie
+and renders the matching hidden nonce. A run POST accepts only
+`application/x-www-form-urlencoded` with exactly that `csrf_token` field:
+there are no business fields in the request body. The server validates the
+fixed scenario path, CSRF nonce, Origin, and Host before creating run
+resources.
+
+For local automated checks, the Web UI is exercised in-process using FastAPI
+`TestClient` with an HTTPS `base_url`; no listening server is required:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\integration\web -q
+```
+
+This is not a public deployment. It has no Provider/keyring/Git remote
+integration and exposes no approve, reject, or resume endpoint.
