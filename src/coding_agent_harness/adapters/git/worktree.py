@@ -4,16 +4,28 @@ import os
 from pathlib import Path
 from typing import Callable
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictStr,
+    field_validator,
+)
 
-from coding_agent_harness.application.preflight import PreflightError, RepositoryPreflight
+from coding_agent_harness.application.preflight import (
+    PreflightError,
+    RepositoryPreflight,
+)
 from coding_agent_harness.config.models import FrozenConfig
 from coding_agent_harness.domain.models import TaskId
 from coding_agent_harness.security.canonical import canonical_sha256
 
 
 _MAX_GIT_OUTPUT = 65_536
-_SAFE_ENV = frozenset({"PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PATHEXT", "LANG", "LC_ALL"})
+_SAFE_ENV = frozenset(
+    {"PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PATHEXT", "LANG", "LC_ALL"}
+)
 
 
 class WorkspaceError(RuntimeError):
@@ -44,10 +56,39 @@ class GitWorktreeAdapter:
     def __init__(self, *, data_root: str | Path, launcher: Callable) -> None:
         self.data_root = Path(data_root).resolve()
         self.worktrees_root = self.data_root / "worktrees"
-        self.launcher = launcher
-        self.preflight = RepositoryPreflight(launcher=launcher)
+        self._launcher = launcher
+        self.launcher = self._launch_hardened
+        self.preflight = RepositoryPreflight(launcher=self.launcher)
 
-    def prepare(self, *, repository: str | Path, task_id: TaskId, frozen_config: FrozenConfig, trust_repo: bool) -> VerifiedWorkspace:
+    def _launch_hardened(self, argv, cwd, shell, env):
+        """Run Git with only explicit demo-safe configuration and no prompts."""
+        if not argv or argv[0] != "git" or shell is not False:
+            raise WorkspaceError("workspace creation failed")
+        environment = {
+            key: value for key, value in env.items() if key.upper() in _SAFE_ENV
+        }
+        environment.update(
+            {
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": os.devnull,
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "core.hooksPath",
+                "GIT_CONFIG_VALUE_0": os.devnull,
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ASKPASS": os.devnull,
+                "SSH_ASKPASS": os.devnull,
+            }
+        )
+        return self._launcher(argv, cwd, False, environment)
+
+    def prepare(
+        self,
+        *,
+        repository: str | Path,
+        task_id: TaskId,
+        frozen_config: FrozenConfig,
+        trust_repo: bool,
+    ) -> VerifiedWorkspace:
         if trust_repo is not True:
             raise WorkspaceError("repository trust is required")
         try:
@@ -55,7 +96,11 @@ class GitWorktreeAdapter:
         except PreflightError as exc:
             raise WorkspaceError(str(exc)) from None
         root = (self.worktrees_root / str(task_id.value)).resolve()
-        if self.worktrees_root.resolve() not in root.parents or root == facts.root or facts.root in root.parents:
+        if (
+            self.worktrees_root.resolve() not in root.parents
+            or root == facts.root
+            or facts.root in root.parents
+        ):
             raise WorkspaceError("workspace path is invalid")
         argv = ("git", "worktree", "add", "--detach", str(root), facts.base_commit)
         self._run(argv, facts.root)
@@ -68,33 +113,58 @@ class GitWorktreeAdapter:
             repository_identity_sha256=facts.identity_sha256,
             base_commit=facts.base_commit,
             config_sha256=frozen_config.sha256,
-            capability_sha256=canonical_sha256(frozen_config.capabilities.model_dump(mode="json")),
+            capability_sha256=canonical_sha256(
+                frozen_config.capabilities.model_dump(mode="json")
+            ),
             isolated=True,
         )
 
-    def validate_resume(self, *, workspace: VerifiedWorkspace, frozen_config: FrozenConfig) -> VerifiedWorkspace:
+    def validate_resume(
+        self, *, workspace: VerifiedWorkspace, frozen_config: FrozenConfig
+    ) -> VerifiedWorkspace:
         root = workspace.root.resolve()
-        if not root.exists() or not root.is_dir() or root.is_symlink() or self.worktrees_root.resolve() not in root.parents:
+        if (
+            not root.exists()
+            or not root.is_dir()
+            or root.is_symlink()
+            or self.worktrees_root.resolve() not in root.parents
+        ):
             raise WorkspaceError("workspace validation failed")
-        if workspace.config_sha256 != frozen_config.sha256 or workspace.capability_sha256 != canonical_sha256(frozen_config.capabilities.model_dump(mode="json")):
+        if (
+            workspace.config_sha256 != frozen_config.sha256
+            or workspace.capability_sha256
+            != canonical_sha256(frozen_config.capabilities.model_dump(mode="json"))
+        ):
             raise WorkspaceError("workspace validation failed")
         try:
             facts = self.preflight.inspect(workspace.repository_root)
         except PreflightError:
             raise WorkspaceError("workspace validation failed") from None
-        if facts.identity_sha256 != workspace.repository_identity_sha256 or facts.base_commit != workspace.base_commit:
+        if (
+            facts.identity_sha256 != workspace.repository_identity_sha256
+            or facts.base_commit != workspace.base_commit
+        ):
             raise WorkspaceError("workspace validation failed")
         return workspace
 
     def _run(self, argv: tuple[str, ...], cwd: Path) -> None:
-        env = {key: value for key, value in os.environ.items() if key.upper() in _SAFE_ENV}
+        env = {
+            key: value for key, value in os.environ.items() if key.upper() in _SAFE_ENV
+        }
         try:
             result = self.launcher(argv, cwd, False, env)
             stdout = getattr(result, "stdout", "") or ""
             stderr = getattr(result, "stderr", "") or ""
-            if getattr(result, "returncode", 1) != 0 or not isinstance(stdout, str) or not isinstance(stderr, str):
+            if (
+                getattr(result, "returncode", 1) != 0
+                or not isinstance(stdout, str)
+                or not isinstance(stderr, str)
+            ):
                 raise WorkspaceError("workspace creation failed")
-            if len(stdout.encode("utf-8", errors="strict")) > _MAX_GIT_OUTPUT or len(stderr.encode("utf-8", errors="strict")) > _MAX_GIT_OUTPUT:
+            if (
+                len(stdout.encode("utf-8", errors="strict")) > _MAX_GIT_OUTPUT
+                or len(stderr.encode("utf-8", errors="strict")) > _MAX_GIT_OUTPUT
+            ):
                 raise WorkspaceError("workspace creation failed")
         except WorkspaceError:
             raise
