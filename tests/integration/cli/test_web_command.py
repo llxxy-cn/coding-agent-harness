@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from click import unstyle
 from typer.testing import CliRunner
 
 from coding_agent_harness.cli.app import build_cli
@@ -16,19 +17,28 @@ def _capture_uvicorn(monkeypatch):
     return captured
 
 
-def test_web_help_describes_required_origin_and_network_options() -> None:
-    result = CliRunner().invoke(build_cli(), ["web", "--help"])
+def test_web_help_describes_required_origin_and_network_options(monkeypatch) -> None:
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    result = CliRunner().invoke(
+        build_cli(), ["web", "--help"], color=True, terminal_width=100
+    )
 
     assert result.exit_code == 0
+    output = unstyle(result.output)
+    assert "\x1b[" in result.output
     for option in ("--origin", "--host", "--port", "--tls-cert", "--tls-key"):
-        assert option in result.stdout
+        assert option in output
 
 
-def test_web_requires_origin() -> None:
-    result = CliRunner().invoke(build_cli(), ["web"])
+def test_web_requires_origin(monkeypatch) -> None:
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    result = CliRunner().invoke(build_cli(), ["web"], color=True, terminal_width=100)
 
     assert result.exit_code != 0
-    assert "--origin" in result.output
+    output = unstyle(result.output)
+    assert "\x1b[" in result.output
+    assert "Missing option" in output
+    assert "--origin" in output
 
 
 def test_web_rejects_non_https_origin() -> None:
