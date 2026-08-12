@@ -34,7 +34,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-coding_agent_harness = ["web/templates/*.html", "web/static/*.js"]
+coding_agent_harness = ["web/templates/*.html", "web/static/*.js", "web/static/*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

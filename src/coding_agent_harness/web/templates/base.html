@@ -6,11 +6,11 @@
     <meta name="referrer" content="origin">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'">
     <title>{% block title %}Coding Agent Harness Demo{% endblock %}</title>
+    <link rel="stylesheet" href="/static/app.css">
     <script src="/static/app.js" defer></script>
   </head>
   <body>
-    <main>
-      <h1>Coding Agent Harness Demo</h1>
+    <main class="page-shell">
       {% block content %}{% endblock %}
     </main>
   </body>

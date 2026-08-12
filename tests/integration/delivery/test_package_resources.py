@@ -29,6 +29,7 @@ RESOURCE_FILES = (
     "web/templates/scenarios.html",
     "web/templates/result.html",
     "web/static/app.js",
+    "web/static/app.css",
 )
 RUNTIME_DEPENDENCIES = (
     "pydantic",
@@ -105,7 +106,7 @@ def _archive_resource_digests(archive: Path) -> dict[str, str]:
 
 
 def _copy_runtime_distributions(target: Path) -> None:
-    pending = list(RUNTIME_DEPENDENCIES)
+    pending = [*RUNTIME_DEPENDENCIES, "httpx"]
     copied: set[str] = set()
 
     while pending:
@@ -207,6 +208,11 @@ import importlib.metadata
 import json
 import os
 
+from fastapi.testclient import TestClient
+from coding_agent_harness.demo.scenarios import ScenarioRegistry
+from coding_agent_harness.web.app import create_demo_app
+from coding_agent_harness.web.security import WebSettings
+
 package = importlib.import_module('coding_agent_harness')
 files = importlib.resources.files(package)
 resources = json.loads(os.environ['CAH_RESOURCE_FILES'])
@@ -223,6 +229,25 @@ result = {
         for dependency in dependencies
     },
     'requires_dist': importlib.metadata.metadata('coding-agent-harness').get_all('Requires-Dist'),
+    'version': importlib.metadata.version('coding-agent-harness'),
+}
+class Service:
+    def run_scenario(self, scenario_id, request_root_parent):
+        raise AssertionError('static requests must not run a scenario')
+app = create_demo_app(
+    web_settings=WebSettings(canonical_origin='https://demo.example.com'),
+    scenario_registry=ScenarioRegistry(),
+    run_service=Service(),
+)
+with TestClient(app, base_url='https://demo.example.com') as client:
+    css = client.get('/static/app.css')
+    script = client.get('/static/app.js')
+result['static'] = {
+    'css_status': css.status_code,
+    'css_content_type': css.headers['content-type'],
+    'css_text': css.text,
+    'script_status': script.status_code,
+    'script_content_type': script.headers['content-type'],
 }
 print(json.dumps(result))
 """
@@ -244,6 +269,15 @@ print(json.dumps(result))
 
     assert Path(result["package_path"]).resolve().is_relative_to(target.resolve())
     assert result["digests"] == _source_digests()
+    assert result["version"] == "0.2.1"
+    assert result["static"]["css_status"] == 200
+    assert result["static"]["css_content_type"].startswith("text/css")
+    assert result["static"]["script_status"] == 200
+    assert result["static"]["script_content_type"].startswith(
+        ("text/javascript", "application/javascript")
+    )
+    assert ".scenario-card" in result["static"]["css_text"]
+    assert ".trace-timeline" in result["static"]["css_text"]
     assert result["dependencies"] == {
         dependency: True for dependency in RUNTIME_DEPENDENCIES
     }

@@ -16,6 +16,7 @@ from urllib.parse import parse_qsl, urlparse
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
@@ -43,6 +44,7 @@ _IPV6_AUTHORITY_PATTERN = re.compile(r"\[([0-9A-Fa-f:.]+)\](?::([0-9]+))?\Z")
 _CSRF_NONCE_PATTERN = re.compile(r"[A-Za-z0-9_-]+\Z")
 _LOGGER = logging.getLogger(__name__)
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).with_name("templates")))
+_STATIC_DIRECTORY = Path(__file__).with_name("static")
 _RUN_SERVICE_ERROR_STATUSES = {
     "timeout": 504,
     "cleanup_failed": 500,
@@ -224,6 +226,7 @@ def create_demo_app(
 ) -> FastAPI:
     """Create the C1 app with all untrusted-request checks before service invocation."""
     app = FastAPI()
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIRECTORY)), name="static")
     canonical_authority = urlparse(web_settings.canonical_origin).netloc
 
     @app.middleware("http")
