@@ -95,6 +95,11 @@ def test_get_lists_fixed_scenarios_and_sets_secure_csrf_cookie(
     response = client.get("/")
 
     assert response.status_code == 200
+    assert 'class="scenario-grid"' in response.text
+    assert (
+        len(re.findall(r'<article class="[^\"]*\bscenario-card\b', response.text)) == 3
+    )
+    assert "<h1>Fixed demo scenarios</h1><ul>" not in response.text
     for scenario_id in ("feedback_success", "governance_denied", "human_review_pause"):
         assert scenario_id in response.text
     cookie = response.headers["set-cookie"].lower()

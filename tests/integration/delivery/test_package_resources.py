@@ -207,7 +207,6 @@ import importlib.resources
 import importlib.metadata
 import json
 import os
-
 from fastapi.testclient import TestClient
 from coding_agent_harness.demo.scenarios import ScenarioRegistry
 from coding_agent_harness.web.app import create_demo_app
@@ -240,6 +239,7 @@ app = create_demo_app(
     run_service=Service(),
 )
 with TestClient(app, base_url='https://demo.example.com') as client:
+    page = client.get('/')
     css = client.get('/static/app.css')
     script = client.get('/static/app.js')
 result['static'] = {
@@ -248,6 +248,12 @@ result['static'] = {
     'css_text': css.text,
     'script_status': script.status_code,
     'script_content_type': script.headers['content-type'],
+}
+result['page'] = {
+    'status': page.status_code,
+    'has_scenario_grid': 'class="scenario-grid"' in page.text,
+    'scenario_card_count': page.text.count('<article class="scenario-card'),
+    'has_old_list': '<h1>Fixed demo scenarios</h1><ul>' in page.text,
 }
 print(json.dumps(result))
 """
@@ -276,6 +282,12 @@ print(json.dumps(result))
     assert result["static"]["script_content_type"].startswith(
         ("text/javascript", "application/javascript")
     )
+    assert result["page"] == {
+        "status": 200,
+        "has_scenario_grid": True,
+        "scenario_card_count": 3,
+        "has_old_list": False,
+    }
     assert ".scenario-card" in result["static"]["css_text"]
     assert ".trace-timeline" in result["static"]["css_text"]
     assert result["dependencies"] == {
