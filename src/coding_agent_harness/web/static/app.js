@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (submitButton) {
         submitButton.disabled = true;
+        submitButton.textContent = "Running…";
       }
       form.setAttribute("aria-busy", "true");
       if (status) {

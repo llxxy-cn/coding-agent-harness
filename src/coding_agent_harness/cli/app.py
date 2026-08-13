@@ -196,6 +196,11 @@ def build_cli(
         tls_key: str | None = typer.Option(
             None, "--tls-key", help="TLS private key path."
         ),
+        behind_https_proxy: bool = typer.Option(
+            False,
+            "--behind-https-proxy",
+            help="Allow the container bind behind a TLS-terminating reverse proxy.",
+        ),
     ) -> None:
         """Serve the fixed offline web demo with one unproxied worker."""
         from coding_agent_harness.demo.scenarios import ScenarioRegistry
@@ -216,7 +221,17 @@ def build_cli(
         if bool(tls_cert) != bool(tls_key):
             typer.echo("--tls-cert and --tls-key must be provided together")
             raise typer.Exit(2)
-        if not _is_private_or_loopback_host(normalized_host) and not tls_cert:
+        if behind_https_proxy and (tls_cert or tls_key):
+            typer.echo("--behind-https-proxy cannot be combined with TLS options")
+            raise typer.Exit(2)
+        if behind_https_proxy and normalized_host != "0.0.0.0":
+            typer.echo("--behind-https-proxy requires --host 0.0.0.0")
+            raise typer.Exit(2)
+        if (
+            not behind_https_proxy
+            and not _is_private_or_loopback_host(normalized_host)
+            and not tls_cert
+        ):
             typer.echo("public host requires --tls-cert and --tls-key")
             raise typer.Exit(2)
 

@@ -7,6 +7,7 @@ ASGI application. These tests deliberately exercise only the C2 Jinja seam.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -158,6 +159,29 @@ def test_scenario_buttons_have_visible_scenario_specific_accessible_names() -> N
     ]
 
 
+def test_scenarios_page_presents_only_the_three_fixed_demo_outcomes() -> None:
+    """The polished landing page must explain the fixed, non-promptable demo."""
+    page = _render_scenarios()
+
+    for text in (
+        "Coding Agent Harness",
+        "Secure, offline, and auditable coding-agent demonstrations.",
+        "Browser runs can start only these fixed scenarios; they cannot submit a prompt, path, or action.",
+        "Feedback Success",
+        "Repair again after feedback from a failed test.",
+        "Expected terminal state: Succeeded",
+        "Governance Denied",
+        "A protected test-asset change is rejected by policy.",
+        "Expected terminal state: Stopped",
+        "Human Review Pause",
+        "A high-impact change pauses safely for human judgment.",
+        "Expected terminal state: Paused for Human",
+    ):
+        assert text in page
+
+    assert len(re.findall(r'class="[^"]*\bscenario-card\b', page)) == 3
+
+
 def test_csrf_token_with_html_metacharacters_is_escaped_and_preserved() -> None:
     """A token must remain a single parsed hidden value, not become markup."""
     token = "csrf&<>'\"-token"
@@ -231,6 +255,13 @@ def test_result_page_renders_only_fixed_typed_trace_text() -> None:
     assert "feedback produced: initial_failure" in page
     assert "policy decision: deny (test_asset_protection)" in page
     assert "terminal status: stopped" in page
+    assert 'class="status-badge status-stopped"' in page
+    assert 'class="trace-timeline"' in page
+    assert 'class="trace-event trace-event-action"' in page
+    assert 'class="trace-event trace-event-test"' in page
+    assert 'class="trace-event trace-event-feedback"' in page
+    assert 'class="trace-event trace-event-policy"' in page
+    assert 'class="trace-event trace-event-terminal"' in page
     for sentinel in forbidden_context.values():
         assert sentinel not in page
 
@@ -243,8 +274,23 @@ def test_base_page_declares_csp_and_referrer_contract_without_inline_script() ->
     assert "default-src 'self'" in page
     assert "frame-ancestors 'none'" in page
     assert 'name="referrer" content="origin"' in page
+    assert 'href="/static/app.css"' in page
     assert 'src="/static/app.js"' in page
     assert "<script>" not in page
+    assert "<style" not in page
+
+
+def test_static_ui_assets_are_local_and_do_not_add_network_origins() -> None:
+    """Presentation assets must remain local under the existing self-only CSP."""
+    stylesheet = (TEMPLATES.parent / "static" / "app.css").read_text(encoding="utf-8")
+    script = (TEMPLATES.parent / "static" / "app.js").read_text(encoding="utf-8")
+
+    for asset in (stylesheet, script):
+        assert "http://" not in asset
+        assert "https://" not in asset
+        assert "//" not in asset
+    assert "fetch(" not in script
+    assert "XMLHttpRequest" not in script
 
 
 def test_submit_script_disables_button_marks_busy_and_announces_without_network() -> (
@@ -259,7 +305,7 @@ const source = fs.readFileSync(process.argv[1], "utf8");
 const documentListeners = {};
 const submitListeners = {};
 const attributes = {};
-const button = { disabled: false };
+const button = { disabled: false, textContent: "Run fixed scenario" };
 const status = { textContent: "" };
 const form = {
   addEventListener(type, listener) { submitListeners[type] = listener; },
@@ -288,6 +334,7 @@ documentListeners.DOMContentLoaded();
 form.dispatchEvent({ type: "submit" });
 console.log(JSON.stringify({
   buttonDisabled: button.disabled,
+  buttonText: button.textContent,
   ariaBusy: attributes["aria-busy"],
   liveText: status.textContent,
   networkCalls,
@@ -303,6 +350,7 @@ console.log(JSON.stringify({
 
     assert json.loads(completed.stdout) == {
         "buttonDisabled": True,
+        "buttonText": "Running…",
         "ariaBusy": "true",
         "liveText": "Running fixed scenario…",
         "networkCalls": 0,

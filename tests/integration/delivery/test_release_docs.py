@@ -16,7 +16,8 @@ RELEASE_URL = "https://github.com/llxxy-cn/coding-agent-harness/releases/tag/v0.
 IMPLEMENTATION_CANDIDATE = "99b615efa15de2bbda7234817b9d46e5e6d7cfb8"
 CI_RUN_URL = "https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31180147117"
 WHEEL_SCHEMA = "coding_agent_harness/adapters/sqlite/schema.sql"
-SDIST_SCHEMA = "coding-agent-harness-0.1.0/src/coding_agent_harness/adapters/sqlite/schema.sql"
+CURRENT_VERSION = "0.2.1"
+SDIST_SCHEMA = f"coding-agent-harness-{CURRENT_VERSION}/src/coding_agent_harness/adapters/sqlite/schema.sql"
 
 
 def text(relative: str) -> str:
@@ -32,9 +33,9 @@ def test_built_archives_include_sqlite_schema(tmp_path: Path) -> None:
         check=True,
     )
 
-    with zipfile.ZipFile(output / "coding_agent_harness-0.1.0-py3-none-any.whl") as wheel:
+    with zipfile.ZipFile(output / f"coding_agent_harness-{CURRENT_VERSION}-py3-none-any.whl") as wheel:
         assert WHEEL_SCHEMA in wheel.namelist()
-    with tarfile.open(output / "coding-agent-harness-0.1.0.tar.gz", "r:gz") as sdist:
+    with tarfile.open(output / f"coding-agent-harness-{CURRENT_VERSION}.tar.gz", "r:gz") as sdist:
         assert SDIST_SCHEMA in sdist.getnames()
 
 
@@ -106,7 +107,7 @@ def test_package_metadata_and_documented_version_are_consistent() -> None:
     with (ROOT / "pyproject.toml").open("rb") as stream:
         project = tomllib.load(stream)["project"]
 
-    assert project["version"] == coding_agent_harness.__version__ == "0.1.0"
+    assert project["version"] == coding_agent_harness.__version__ == CURRENT_VERSION
     assert project["readme"] == "README.md"
     assert project["scripts"] == {
         "coding-agent-harness": "coding_agent_harness.cli.app:main"

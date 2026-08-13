@@ -296,7 +296,7 @@ def test_post_runs_real_worker_and_renders_the_validated_fixed_trace(
     assert "run_started" not in response.text
     assert f"Terminal status: {terminal_status.value}" in response.text
     for display_text in expected_display:
-        assert f"<li>{display_text}</li>" in response.text
+        assert display_text in response.text
 
     (captured,) = service.captured
     assert captured.scenario_id == scenario_id

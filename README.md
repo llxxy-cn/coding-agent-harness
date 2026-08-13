@@ -6,13 +6,15 @@ Coding Agent Harness is a governed local agent for making bounded changes to tru
 
 The delivered core does not use LangChain AgentExecutor, AutoGen, CrewAI, LlamaIndex Agent, the OpenAI Agents SDK, or another packaged agent loop. The OpenAI adapter performs one Responses API call; `HarnessCore` owns orchestration.
 
-Version 0.1.0 is the current Release candidate. It includes an offline deterministic demonstration and one real-provider adapter. Implementation candidate `99b615efa15de2bbda7234817b9d46e5e6d7cfb8` passed the `package-build`, `test (3.11)`, and `test (3.12)` jobs in [GitHub Actions run 31180147117](https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31180147117).
+The current source package metadata declares version `0.2.1`. It is a release candidate that fixes the package-metadata inconsistency in the completed historical `v0.2.0` release without moving, deleting, or rebuilding `v0.2.0`. The `v0.2.1` tag, hosted GitHub Release, and release assets have not been created or uploaded; they remain pending until the current PR is merged. Implementation candidate `99b615efa15de2bbda7234817b9d46e5e6d7cfb8` passed the `package-build`, `test (3.11)`, and `test (3.12)` jobs in [GitHub Actions run 31180147117](https://github.com/llxxy-cn/coding-agent-harness/actions/runs/31180147117).
 
 Repository: https://github.com/llxxy-cn/coding-agent-harness
 
 Canonical v0.1.0 Release URL: https://github.com/llxxy-cn/coding-agent-harness/releases/tag/v0.1.0
 
-The GitHub Release page is the authoritative source for current Tag, hosted Release, and asset availability. This document does not claim that Tag creation, hosted Release creation, or asset upload has occurred before GitHub reports it there.
+v0.2.0 tag/release URL: https://github.com/llxxy-cn/coding-agent-harness/releases/tag/v0.2.0
+
+The GitHub Release page is the authoritative source for tag, hosted-release, and asset availability. The repository checkout does not retain a v0.2.0 `dist/` artifact inventory, so asset availability must be checked on that page before relying on it.
 
 ## Features
 
@@ -44,7 +46,7 @@ Build and install the wheel locally:
 ```powershell
 .\.venv\Scripts\python.exe -m build --no-isolation
 py -3.12 -m venv .verify-venv
-.\.verify-venv\Scripts\python.exe -m pip install dist\coding_agent_harness-0.1.0-py3-none-any.whl
+.\.verify-venv\Scripts\python.exe -m pip install --force-reinstall dist\coding_agent_harness-0.2.1-py3-none-any.whl
 .\.verify-venv\Scripts\coding-agent-harness.exe --help
 ```
 
@@ -111,11 +113,34 @@ Read or resume a persisted task using the canonical UUIDv4 printed by `run`:
 ```text
 coding-agent-harness status TASK_ID
 coding-agent-harness resume TASK_ID
+coding-agent-harness web --help
 ```
 
 `--trust-repo` is an explicit assertion that the repository is trusted for the documented local processing and, in real mode, the bounded data sent to the configured provider. It does not disable preflight, worktree isolation, Policy, Approval, Trust binding, or workspace-drift checks.
 
 CLI output is intentionally small: canonical task ID, task status, and a safe summary. It does not print raw pytest output, credential material, internal database paths, or governed-worktree paths.
+
+## Fixed Offline WebUI
+
+v0.2.0 adds a fixed, offline WebUI with three predefined scenarios: feedback-driven repair, governance denial, and human-review pause. It is a fixed offline-scenario demonstration, not a free-form conversational Agent UI: it does not accept a browser-supplied repository, prompt, Patch, command, provider mode, credential, or approval/resume decision.
+
+The command requires a canonical HTTPS origin. A loopback bind can be used for local development, but it is not a public deployment and normally needs a local HTTPS terminator whose canonical origin is supplied to the command:
+
+```powershell
+.\.venv\Scripts\coding-agent-harness.exe web --origin https://demo.example.test --host 127.0.0.1 --port 8000
+```
+
+For a non-loopback bind, provide both `--tls-cert` and `--tls-key`. A container behind a platform TLS terminator must instead explicitly declare that boundary and bind only its internal listener:
+
+```text
+coding-agent-harness web --origin https://demo.example.com --host 0.0.0.0 --port 8000 --behind-https-proxy
+```
+
+`--behind-https-proxy` is mutually exclusive with local TLS options and only accepts `--host 0.0.0.0`. It does not enable Uvicorn proxy headers or trust `Forwarded` / `X-Forwarded-*`; canonical raw `Host`, raw `Origin`, and CSRF checks remain authoritative. Configure Cloud Run or Render with the public canonical origin as an explicit command argument, one instance, and container port `8000` (or pass its assigned port explicitly). The platform proxy must send the canonical `Host` upstream and the application must not be directly reachable over the Internet.
+
+`GET /healthz` returns only `ok`; it creates no CSRF cookie and runs no scenario. It is suitable for container liveness checks. The recorded public Render endpoint is [https://coding-agent-harness-ch7b.onrender.com](https://coding-agent-harness-ch7b.onrender.com), deployed from `task/final-course-delivery` at `9db2c1d40b3f117165283bf16423b51b26b38df78`; its `/healthz` endpoint returned HTTP 200. Manual public smoke verification confirmed the new three scenario cards on the home page; `feedback_success` reached `succeeded`, `governance_denied` reached `stopped`, and `human_review_pause` reached `paused_for_human`; each result page displayed the new status badge and typed, redacted execution trace.
+
+This is a course-demonstration deployment, not a highly available production service. It uses Render Free, so after an idle period the service may sleep and the first request can take more than 50 seconds; allow for this cold-start delay before treating a request as failed.
 
 ## Offline Demo
 
@@ -169,7 +194,23 @@ The supported local artifact is a universal Python wheel plus source distributio
 .\.venv\Scripts\python.exe -m build --no-isolation
 ```
 
-The console entry point is `coding-agent-harness = coding_agent_harness.cli.app:main`. Release contents and local evidence are summarized in [RELEASE_NOTES.md](RELEASE_NOTES.md). The canonical `v0.1.0` GitHub Release page is the authoritative source for whether the audited wheel and sdist are currently available.
+The console entry point is `coding-agent-harness = coding_agent_harness.cli.app:main`. Release contents and local evidence are summarized in [RELEASE_NOTES.md](RELEASE_NOTES.md). The canonical `v0.1.0` GitHub Release page remains the authoritative source for that historical release's audited wheel and sdist.
+
+The v0.2.0 WebUI resources are included in the source tree and have distribution-resource tests. This checkout's `0.2.1` build is a release candidate solely for correcting the package metadata mismatch; it does not alter the historical v0.2.0 tag or Release.
+
+## CI and Delivery Status
+
+GitHub Actions defines Python 3.11/3.12 tests and a package-build job. Earlier recorded GitHub evidence is linked above; the v0.2.0 commit history also records local full-suite and focused WebUI verification. `.gitlab-ci.yml` contains `unit-test`, `package-build`, and `docker-build` jobs. The GitLab configuration and jobs have local contract-test evidence, but no NJU GitLab pipeline result is recorded, so this project does not claim that GitLab CI has passed.
+
+Docker/OCI delivery includes a `Dockerfile`, `.dockerignore`, and a wheel-based, non-root image definition. A local Linux Docker daemon successfully built the image and completed the real three-scenario smoke with a read-only root filesystem, non-root user, tmpfs `/tmp`, dropped capabilities, and `no-new-privileges`. The GitLab `docker-build` job is configured and locally contract-tested, but no remote GitLab pipeline result is recorded. No OCI image has been published to a public Registry. The recorded Render deployment, `/healthz` HTTP-200 check, and all three fixed-scenario terminal results are described above.
+
+## Cleanup
+
+The harness intentionally retains generated worktrees and local verification environments for inspection. After preserving evidence you need, remove only the specific generated worktree, virtual environment, or build directory you created; never remove the source repository or an unresolved task workspace. No automatic cleanup command is provided.
+
+## AI Assistance
+
+Codex assisted with requirement analysis, implementation planning, code and test generation, debugging, and documentation organization. The student retained responsibility for requirements, architecture decisions, review, Git operations, publication authorization, and the personal reflection.
 
 ## License
 
@@ -189,4 +230,7 @@ See [LICENSE](LICENSE) for the standard terms. Third-party dependencies are not 
 - There is no parallel task execution or multi-agent coordination.
 - Process controls are bounded local execution, not a production-grade OS sandbox.
 - Two symlink-security tests may skip on Windows when the account lacks symlink privilege.
-- Tag creation, hosted Release creation, and asset upload remain separately authorized publication actions until they are reflected on the canonical GitHub Release page.
+- `0.2.1` is the current release candidate for the v0.2.0 package-metadata consistency repair; its tag, hosted GitHub Release, and release assets remain pending until the current PR is merged.
+- No OCI image has been published to a public Registry, and no remote GitLab `docker-build` result is recorded. The image requires a writable `/tmp` tmpfs for its fixed worker runs and remains single-instance only.
+- The recorded Render Free deployment can sleep when idle; its first subsequent request may take more than 50 seconds.
+- The public Render endpoint is a course demonstration, not a highly available production service.

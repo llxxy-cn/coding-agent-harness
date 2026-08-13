@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "coding-agent-harness"
-version = "0.1.0"
+version = "0.2.1"
 description = "A governed local coding agent harness with deterministic pytest feedback."
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
@@ -34,7 +34,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-coding_agent_harness = ["web/templates/*.html", "web/static/*.js"]
+coding_agent_harness = ["web/templates/*.html", "web/static/*.js", "web/static/*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

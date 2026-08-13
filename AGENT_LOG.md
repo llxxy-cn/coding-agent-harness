@@ -122,9 +122,9 @@
 - **Subagent ID:** not retained
 - **Reviewer ID:** not retained
 - **Exact timestamp:** not recorded
-- **Task 18 status:** PARTIAL — package build and CI definitions pass (`.gitlab-ci.yml`, `.github/workflows/ci.yml`; 9 delivery tests pass; CI passed 6 checks on PR #1); missing: `Dockerfile`, `.dockerignore`
+- **Task 18 status:** PARTIAL — at this historical checkpoint, package build and CI definitions passed (`.gitlab-ci.yml`, `.github/workflows/ci.yml`; 9 delivery tests pass; CI passed 6 checks on PR #1) while `Dockerfile` and `.dockerignore` were still missing; later Docker evidence is recorded below.
 - **Task 19 status:** PARTIAL — documentation, license, and reflection exist (`README.md`, `LICENSE`, `REFLECTION.md`, `SPEC_PROCESS.md`, `AGENT_LOG.md`; 9 delivery tests pass); `scripts/check_course_delivery.py --preflight` not implemented — cannot prove "distinguish AI-owned artifacts from pending student-owned Reflection and report" completion criterion
-- **Task 20 status:** PARTIAL — tag `v0.1.0` at `3e7b312`, Release created, assets uploaded, Reflection committed, CI passed, local tests and package build completed; image build, release manifest, `verify_release.py`, public demo deployment, and deployed scenario verification not completed; hosted GitHub Release URL exists, but no public application/demo deployment URL is recorded
+- **Task 20 status:** PARTIAL — at this historical checkpoint, tag `v0.1.0` at `3e7b312`, Release created, assets uploaded, Reflection committed, CI passed, local tests and package build completed; image build, release manifest, and `verify_release.py` remained incomplete. Later Docker and Render records below supersede the former absence of container and public-deployment evidence.
 
 ---
 
@@ -172,3 +172,73 @@
 - Status at the time of this entry: awaiting human review; no commit, no push, no PR
 - Lesson: later implementation is not evidence that a historical gate passed; a missing reviewer response cannot be replaced by controller self-review; completion status must follow acceptance evidence rather than milestone membership
 - Exact timestamp: not recorded
+
+---
+
+## 2026-08-09 to 2026-08-11 — v0.2.0 Fixed Offline WebUI (retrospective Git evidence)
+
+> This entry was reconstructed from the commits merged between `v0.1.0` and annotated tag `v0.2.0` (`34db102d567febd415a0d86ed62dea8aefda9d01`). It records only identifiers, reviews, interventions, and verification stated in those commit messages. A local tag or local test result is not treated as a Docker image, GitLab pipeline, or public HTTPS deployment.
+
+- **Design and plan:** `d20c73b` (PR #3) records the human-confirmed v0.2.0 design, two fresh-context reviews (`ses_01ae6d229ffeWXdMXyqK4BTCm0` and `ses_01ae192e7ffeR33hEku5vk7BZ7`, both PASS), and human freezing of HTTPS/CSRF, fixed-scenario, trace, termination, resource, and no-baseline-test boundaries. `62dfcb5` (PR #4) records the 15-task plan, final completeness/technical reviews (`ses_019a430f8ffeiGat3gfTgHy1Sb`, `ses_019a3fba6ffeNaOe4A7Exvv6Lv`, both APPROVED), and the human-required reduction and correction of the plan. The correction general subagent returned empty; the main agent made the correction and fresh reviewers approved it.
+- **Subagent and review evidence:** the trace/security foundations record implementation subagents `ses_0196bbe6effeihThzNmVEX6qC3` and `ses_0196b48a2ffe2cno7W8RgnPUe7`, with named specification and quality reviewers in commits `88f979e` and `9729459`. Scenario work records `/root/b0_implementer`, `/root/b1_implementer`, `/root/b2_implementer`, and `/root/b3_implementer`, with Stage 1/Stage 2 review and scoped re-review outcomes in commits `c0cb773`, `13fea9e`, `07a0486`, and `6cb710d`. Application/pages/run-service commits `a86e61d`, `5086435`, and `5bc7b1a` record their implementer/reviewer names or passed review stages. Where a handoff did not retain an identifier (the A2 implementation handoff), this is explicitly stated in `b8ecc9d` rather than reconstructed.
+- **Human interventions:** recorded interventions required fail-closed trace and Origin/Host/CSRF validation, exact scenario event sequences, Provider/keyring isolation, immutable demo repository handling, secure cleanup/termination behavior, and closure of review findings. `b8ecc9d` records the human-requested stricter scenario types and nested symlink/reparse containment; `a86e61d` records deferral of real invocation-count evidence until the runtime milestone; `5086435` records five pages-review findings followed by a passing scoped re-review.
+- **Merged implementation evidence:** PRs #6–#16 merged typed traces, web security primitives, fixed scenario resources/runtime/tests, the FastAPI boundary and pages, supervised worker lifecycle, packaged resources/CLI delivery, and the browser-Origin regression fix. The first-parent merge commits are `e828b15`, `dd43bba`, `fcdca69`, `0f18c58`, `625a1b1`, `30e45b5`, `1035782`, `3b8494d`, `370ac49`, `47aa9e9`, `0f6945a`, and `34db102`.
+- **CI-related fixes and local verification:** `51f774b` records a one-line containment-message correction after Linux CI exposed a regex mismatch; its focused test was skipped on Windows and the commit explicitly retains Linux CI as required evidence for that directory-symlink regression. `37d0e73` normalizes styled CLI help assertions for CI environments. `e35527f`, merged as PR #16 (`34db102`), changes Referrer-Policy to preserve the canonical browser Origin while retaining strict Origin/Host/CSRF rejection. Its commit records focused 8 passed, web integration 123 passed/1 skipped, unit web 119 passed/3 skipped, delivery 12 passed, full 658 passed/7 skipped, and local browser smoke of all three fixed scenarios. These are local/GitHub-history verification records only; no NJU GitLab pipeline pass is recorded.
+- **Publication and version boundary:** the local repository contains the completed historical annotated `v0.2.0` tag at `34db102`; the student confirmed that v0.2.0 was published. At that historical v0.2.0 checkpoint, package metadata still declared `version = "0.1.0"`; the current project/package metadata is `0.2.1`. This retrospective Git-history entry itself retains no v0.2.0 `dist/` artifact; later Docker and Render deployment evidence is recorded separately below.
+- **Status:** this historical entry records the fixed/offline v0.2.0 implementation and its then-local verification. It is superseded for public deployment status by the later Render record below, which records a public URL, `/healthz` HTTP 200, and all three fixed-scenario terminal states. Docker publication and remote GitLab CI remain unrecorded.
+
+## 2026-08-11 — Course-submission CI repair (uncommitted review set)
+
+- **Task:** make the GitLab `unit-test` job reproducible with its declared preinstalled build backend, while keeping GitHub and GitLab test-install commands aligned.
+- **Observed failure:** the original local equivalent ran the build-tool installation and then `pip install -e ".[dev]"`; pip created an isolated build environment and failed to fetch the already-declared setuptools requirement in the restricted environment. The following pytest command still passed, but the installation failure means that run was not recorded as a passing job.
+- **Red/Green evidence:** the CI-contract test was changed first to require `python -m pip install --no-build-isolation -e ".[dev]"` and failed against both existing workflows (2 failed, 1 passed). The minimal configuration change applies that exact command to GitLab `unit-test` and the matching GitHub test job. The corrected local equivalent then completed the build-tool install, editable install, CI-contract test (3 passed), and full suite (658 passed, 7 skipped; one existing Starlette/httpx deprecation warning).
+- **Human boundary:** this is local verification only. No NJU GitLab pipeline, Docker build, push, PR, Tag, or Release action was run. The current files remain uncommitted for human review.
+
+---
+
+## 2026-08-11 — v0.2.1 package-metadata consistency release candidate (uncommitted)
+
+- **Scope:** make `0.2.1` the current package version solely to repair the mismatch between the published `v0.2.0` state and its package metadata. `pyproject.toml` `[project].version` and `coding_agent_harness.__version__` are the current-version authorities and now agree on `0.2.1`.
+- **Historical boundary:** `v0.1.0` release notes, canonical URL, and historical artifact references remain unchanged. The annotated `v0.2.0` tag was not moved, deleted, or rebuilt. No tag, hosted Release, commit, push, or PR was created.
+- **Red → Green:** the current-version delivery assertion was changed first to require `0.2.1` and failed while metadata remained `0.1.0`; synchronizing only the two authority fields made it pass. The archive exclusion assertion was then expanded to forbid top-level `docs/`; it failed because `MANIFEST.in` admitted documentation into the sdist. Replacing the documentation includes with `prune docs` made the assertion pass while retaining the fixed package demo resources.
+- **Build and isolation evidence:** `python -m build --no-isolation` produced `coding_agent_harness-0.2.1-py3-none-any.whl` and `coding-agent-harness-0.2.1.tar.gz`. Both archives were checked for top-level docs/tests, Git metadata, caches, and sensitive-file names; none were present. A fresh temporary venv force-installed the wheel with `--force-reinstall --no-deps`, and `importlib.metadata.version("coding-agent-harness")` returned `0.2.1`. A normal dependency-resolving install could not find `pydantic` in the restricted environment, so the existing isolated-install strategy copied the reviewed runtime distributions into that temporary venv; fixed resources, `coding-agent-harness --help`, and `coding-agent-harness web --help` then succeeded.
+- **Tests:** delivery 12 passed; full suite 658 passed, 7 skipped, 1 existing Starlette/httpx deprecation warning.
+- **Status:** candidate validation is local only and the working tree remains uncommitted pending human review; temporary build and venv artifacts are to be removed before handoff.
+
+---
+
+## 2026-08-11 — Deployment Stage 3A: proxy Docker image (uncommitted)
+
+- **Task:** create a single-instance fixed-demo OCI image suitable only behind a Cloud Run or Render HTTPS proxy, without Registry publication, scan, or deployment.
+- **Human boundary:** before changes, recorded `git status` and the complete diff of the pre-existing `tests/integration/delivery/test_release_docs.py` package-version correction. That file is protected user work: it was neither edited, deleted, staged, nor included in this task's intended scope.
+- **Red → Green:** proxy-mode CLI and `/healthz` tests were added first; focused Red result was 3 failed / 59 passed because the option and route were absent. The minimal CLI and FastAPI changes produced 62 passed. Docker delivery contracts were then added first; Red result was 3 failed because Dockerfile, `.dockerignore`, and `docker-build` were absent. Docker assets plus the local GitLab smoke contract produced 65 focused passes.
+- **Security boundary:** `--behind-https-proxy` requires HTTPS canonical origin and `0.0.0.0`, rejects local TLS options, retains one worker and `proxy_headers=False`, and never changes raw Host/Origin/CSRF or forwarded-header treatment. `/healthz` returns `ok` without a CSRF cookie, registry iteration, or scenario invocation. The image runs as `10001:10001`, writes only temporary worker state below `/tmp`, and CI smoke supplies read-only rootfs, tmpfs, capability drop, and no-new-privileges.
+- **Actual limitation at this checkpoint:** local Docker verification was attempted, but Docker Desktop's Linux daemon pipe was absent (`dockerDesktopLinuxEngine` unavailable). At that point, image-build and runtime-smoke evidence remained pending. Later local Linux Docker-daemon verification successfully built the image and completed the restricted real three-scenario smoke; no OCI Registry push or remote GitLab pipeline result is recorded. At this Stage 3A entry, no Docker image publication, Registry push, GitLab pipeline, public deployment, commit, push, PR, Tag, or Release action was performed; the later Docker and Render evidence is recorded separately below.
+
+---
+
+## 2026-08-11 — Render public-endpoint verification
+
+- **Deployment source:** `task/final-course-delivery` at `832b0e9`.
+- **Public endpoint:** `https://coding-agent-harness-ch7b.onrender.com`.
+- **Observed verification:** `GET /healthz` returned HTTP 200.
+- **Observed scenario verification:** fixed `feedback_success` reached terminal status `succeeded`.
+- **Observed scenario verification:** fixed `governance_denied` reached terminal status `stopped`.
+- **Observed scenario verification:** fixed `human_review_pause` reached terminal status `paused_for_human`.
+- **Operational limitation:** the Render Free service can sleep after idle time; the first subsequent request may take more than 50 seconds.
+- **Service boundary:** this is a course-demonstration deployment, not a highly available production service.
+- **Evidence boundary:** this records public reachability, the cookie-free liveness endpoint, and all three fixed scenarios. It does not claim image-registry publication, a remote GitLab result, a commit, push, PR, tag, or Release mutation.
+
+---
+
+## 2026-08-13 — Render final deployed UI verification (uncommitted review set)
+
+- **Final deployment source:** `task/final-course-delivery` at `9db2c1d40b3f117165283bf16423b51b26b38df78` (`fix(web): render scenario cards on the home page`).
+- **Public endpoint:** `https://coding-agent-harness-ch7b.onrender.com`.
+- **Service boundary:** this is a fixed offline-scenario demonstration, not a free-form conversational Agent UI. It remains a course demonstration, not a highly available production service.
+- **Observed health verification:** `GET /healthz` returned HTTP 200 with `ok`.
+- **Observed home-page verification:** the new three scenario cards rendered.
+- **Observed scenario verification:** `feedback_success → succeeded`, `governance_denied → stopped`, and `human_review_pause → paused_for_human`.
+- **Observed result-page verification:** all three result pages displayed the new status badge and typed, redacted execution trace.
+- **Later local container verification:** the Dockerfile image was successfully built on a Linux Docker daemon and completed the real three-scenario smoke with read-only rootfs, non-root execution, tmpfs `/tmp`, cap-drop, and `no-new-privileges`; no OCI Registry publication or remote GitLab pipeline result is recorded.
+- **Evidence boundary:** this records manual public smoke verification only. It does not claim image-registry publication, remote GitLab execution, or any commit, push, merge, tag, or Release mutation by this documentation update.

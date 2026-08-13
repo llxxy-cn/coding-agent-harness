@@ -3,39 +3,61 @@
 {% block title %}Demo scenarios · Coding Agent Harness{% endblock %}
 
 {% block content %}
-  <p>Select one of the fixed offline demo scenarios.</p>
+  <section class="hero" aria-labelledby="page-title">
+    <p class="eyebrow">Fixed-scenario demonstration</p>
+    <h1 id="page-title">Coding Agent Harness</h1>
+    <p class="hero-copy">Secure, offline, and auditable coding-agent demonstrations.</p>
+    <p class="boundary-note">Browser runs can start only these fixed scenarios; they cannot submit a prompt, path, or action.</p>
+  </section>
 
-  {% for scenario in scenarios %}
-    {% if scenario.scenario_id == "feedback_success" %}
-      <section>
+  <section class="scenario-grid" aria-label="Fixed demo scenarios">
+    {% for scenario in scenarios %}
+      {% if scenario.scenario_id == "feedback_success" %}
+      <article class="scenario-card scenario-card-success">
+        <div class="card-heading">
+          <span class="card-index" aria-hidden="true">01</span>
+          <span class="card-kicker">Feedback loop</span>
+        </div>
         <h2>Feedback Success</h2>
-        <p>A fixed two-step repair demonstrates typed test feedback.</p>
+        <p>Repair again after feedback from a failed test.</p>
+        <p class="expected-state">Expected terminal state: Succeeded</p>
         <form method="post" action="/scenarios/feedback_success/runs" data-run-form>
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit">Run Feedback Success scenario</button>
           <p data-submit-status aria-live="polite"></p>
         </form>
-      </section>
-    {% elif scenario.scenario_id == "governance_denied" %}
-      <section>
+      </article>
+      {% elif scenario.scenario_id == "governance_denied" %}
+      <article class="scenario-card scenario-card-policy">
+        <div class="card-heading">
+          <span class="card-index" aria-hidden="true">02</span>
+          <span class="card-kicker">Policy boundary</span>
+        </div>
         <h2>Governance Denied</h2>
-        <p>A fixed protected-test change is denied by policy.</p>
+        <p>A protected test-asset change is rejected by policy.</p>
+        <p class="expected-state">Expected terminal state: Stopped</p>
         <form method="post" action="/scenarios/governance_denied/runs" data-run-form>
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit">Run Governance Denied scenario</button>
           <p data-submit-status aria-live="polite"></p>
         </form>
-      </section>
-    {% elif scenario.scenario_id == "human_review_pause" %}
-      <section>
+      </article>
+      {% elif scenario.scenario_id == "human_review_pause" %}
+      <article class="scenario-card scenario-card-review">
+        <div class="card-heading">
+          <span class="card-index" aria-hidden="true">03</span>
+          <span class="card-kicker">Human checkpoint</span>
+        </div>
         <h2>Human Review Pause</h2>
-        <p>A fixed high-impact action pauses for human review.</p>
+        <p>A high-impact change pauses safely for human judgment.</p>
+        <p class="expected-state">Expected terminal state: Paused for Human</p>
         <form method="post" action="/scenarios/human_review_pause/runs" data-run-form>
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit">Run Human Review Pause scenario</button>
           <p data-submit-status aria-live="polite"></p>
         </form>
-      </section>
-    {% endif %}
-  {% endfor %}
+      </article>
+      {% endif %}
+    {% endfor %}
+  </section>
 {% endblock %}

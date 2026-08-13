@@ -7,7 +7,7 @@ unit-test:
   image: python:3.12
   script:
     - python -m pip install "setuptools>=68,<69" "wheel>=0.42,<1" "build>=1.5,<1.6"
-    - python -m pip install -e ".[dev]"
+    - python -m pip install --no-build-isolation -e ".[dev]"
     - python -m pytest -q
 
 package-build:
@@ -16,3 +16,82 @@ package-build:
   script:
     - python -m pip install "setuptools>=68,<69" "wheel>=0.42,<1" "build>=1.5,<1.6"
     - python -m build --no-isolation
+
+docker-build:
+  stage: build
+  image: docker:27.5.1-cli
+  services:
+    - name: docker:27.5.1-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: /certs
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_CERT_PATH: /certs/client
+    CAH_IMAGE: cah-web:$CI_COMMIT_SHA
+  script:
+    - docker info
+    - docker build --pull --tag "$CAH_IMAGE" .
+    - test "$(docker image inspect --format '{{.Config.User}}' "$CAH_IMAGE")" = "10001:10001"
+    - docker run --detach --name cah-web-smoke --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m --cap-drop ALL --security-opt no-new-privileges "$CAH_IMAGE" --origin https://demo.example.com --host 0.0.0.0 --behind-https-proxy
+    - |
+      docker exec cah-web-smoke python -c "
+      import http.client
+      import re
+      import time
+
+      for _ in range(20):
+          connection = http.client.HTTPConnection('127.0.0.1', 8000, timeout=2)
+          try:
+              connection.request('GET', '/healthz')
+              response = connection.getresponse()
+              body = response.read()
+              if response.status == 200 and body == b'ok':
+                  assert response.getheader('Set-Cookie') is None
+                  break
+          except OSError:
+              pass
+          finally:
+              connection.close()
+          time.sleep(0.25)
+      else:
+          raise AssertionError('health check did not become ready')
+
+      connection = http.client.HTTPConnection('127.0.0.1', 8000, timeout=70)
+      connection.request('GET', '/', headers={'Host': 'demo.example.com'})
+      response = connection.getresponse()
+      page = response.read().decode('utf-8')
+      cookie = response.getheader('Set-Cookie')
+      assert response.status == 200
+      assert cookie is not None
+      assert 'Secure' in cookie and 'HttpOnly' in cookie and 'SameSite=strict' in cookie
+      token_match = re.search(r'__Host-cah_csrf=([^;]+)', cookie)
+      assert token_match is not None
+      token = token_match.group(1)
+      assert 'feedback_success' in page
+      headers = {
+          'Host': 'demo.example.com',
+          'Origin': 'https://demo.example.com',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Cookie': '__Host-cah_csrf=' + token,
+      }
+      connection.close()
+      connection = http.client.HTTPConnection('127.0.0.1', 8000, timeout=70)
+      connection.request('POST', '/scenarios/feedback_success/runs', 'csrf_token=' + token, headers)
+      response = connection.getresponse()
+      assert response.status == 200
+      response.read()
+      connection.close()
+      for invalid_headers in (
+          {**headers, 'Origin': 'null'},
+          {**headers, 'Host': 'evil.example.com'},
+      ):
+          connection = http.client.HTTPConnection('127.0.0.1', 8000, timeout=5)
+          connection.request('POST', '/scenarios/feedback_success/runs', 'csrf_token=' + token, invalid_headers)
+          response = connection.getresponse()
+          assert response.status == 403
+          response.read()
+          connection.close()
+      "
+    - test -z "$(docker diff cah-web-smoke)"
+  after_script:
+    - docker rm --force cah-web-smoke || true

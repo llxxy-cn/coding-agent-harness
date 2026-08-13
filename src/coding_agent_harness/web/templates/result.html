@@ -3,12 +3,25 @@
 {% block title %}Run result · Coding Agent Harness{% endblock %}
 
 {% block content %}
-  <h2>Run result</h2>
-  <p>Terminal status: {{ trace.terminal_status.value }}</p>
-  <ol aria-label="Execution trace">
+  <section class="result-hero" aria-labelledby="result-title">
+    <p class="eyebrow">Fixed-scenario result</p>
+    <h1 id="result-title">Run result</h1>
+    <p class="terminal-summary" aria-label="Terminal status: {{ trace.terminal_status.value }}">Terminal status: <span class="status-badge status-{{ trace.terminal_status.value }}">{{ trace.terminal_status.value|replace('_', ' ')|title }}</span></p>
+  </section>
+  <section class="trace-panel" aria-labelledby="trace-title">
+    <div class="trace-panel-heading">
+      <h2 id="trace-title">Execution trace</h2>
+      <p>Typed, redacted events only</p>
+    </div>
+    <ol class="trace-timeline" aria-label="Execution trace">
     {% for event in trace.events %}
-      <li>{{ trace.display_text(event) }}</li>
+      <li class="trace-event trace-event-{{ event.event_type.value|replace('_selected', '')|replace('_completed', '')|replace('_produced', '')|replace('_decision', '')|replace('_status', '') }}">
+        <span class="trace-marker" aria-hidden="true"></span>
+        <span class="trace-label">{{ event.event_type.value|replace('_', ' ')|title }}</span>
+        <span class="trace-text">{{ trace.display_text(event) }}</span>
+      </li>
     {% endfor %}
-  </ol>
-  <p><a href="/">Choose another fixed scenario</a></p>
+    </ol>
+  </section>
+  <p class="return-link"><a href="/">Choose another fixed scenario</a></p>
 {% endblock %}

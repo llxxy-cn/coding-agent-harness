@@ -89,10 +89,17 @@ def test_factory_requires_keyword_dependencies() -> None:
         )
 
 
-def test_get_lists_fixed_scenarios_and_sets_secure_csrf_cookie(client: TestClient) -> None:
+def test_get_lists_fixed_scenarios_and_sets_secure_csrf_cookie(
+    client: TestClient,
+) -> None:
     response = client.get("/")
 
     assert response.status_code == 200
+    assert 'class="scenario-grid"' in response.text
+    assert (
+        len(re.findall(r'<article class="[^\"]*\bscenario-card\b', response.text)) == 3
+    )
+    assert "<h1>Fixed demo scenarios</h1><ul>" not in response.text
     for scenario_id in ("feedback_success", "governance_denied", "human_review_pause"):
         assert scenario_id in response.text
     cookie = response.headers["set-cookie"].lower()
@@ -107,12 +114,68 @@ def test_get_lists_fixed_scenarios_and_sets_secure_csrf_cookie(client: TestClien
     assert hidden.group(1) == _csrf_token(response)
 
 
+def test_healthz_is_cookie_free_and_does_not_touch_demo_dependencies() -> None:
+    class ExplodingRegistry:
+        def __iter__(self):
+            raise AssertionError("health check must not list scenarios")
+
+    service = RecordingRunService()
+    app = create_demo_app(
+        web_settings=WebSettings(canonical_origin="https://demo.example.com"),
+        scenario_registry=ExplodingRegistry(),  # type: ignore[arg-type]
+        run_service=service,
+    )
+    with TestClient(app, base_url="https://demo.example.com") as health_client:
+        response = health_client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.text == "ok"
+    assert "set-cookie" not in response.headers
+    assert service.calls == []
+
+
+def test_static_assets_are_local_read_only_and_do_not_touch_demo_dependencies() -> None:
+    """Static UI assets must be package-owned, cookie-free, and outside the demo flow."""
+
+    class ExplodingRegistry:
+        def __iter__(self):
+            raise AssertionError("static requests must not list scenarios")
+
+    service = RecordingRunService()
+    app = create_demo_app(
+        web_settings=WebSettings(canonical_origin="https://demo.example.com"),
+        scenario_registry=ExplodingRegistry(),  # type: ignore[arg-type]
+        run_service=service,
+    )
+    with TestClient(app, base_url="https://demo.example.com") as static_client:
+        css = static_client.get("/static/app.css")
+        script = static_client.get("/static/app.js")
+        missing = static_client.get("/static/missing.css")
+        traversal = static_client.get("/static/%2e%2e/app.py")
+
+    assert css.status_code == 200
+    assert css.headers["content-type"].startswith("text/css")
+    assert script.status_code == 200
+    assert script.headers["content-type"].startswith(
+        ("text/javascript", "application/javascript")
+    )
+    assert missing.status_code == 404
+    assert traversal.status_code == 404
+    assert "set-cookie" not in css.headers
+    assert "set-cookie" not in script.headers
+    assert service.calls == []
+
+
 def test_valid_post_calls_service_after_security_checks(
     client: TestClient, run_service: RecordingRunService
 ) -> None:
     token = _csrf_token(client.get("/"))
 
-    response = _post(client, token, **{"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"})
+    response = _post(
+        client,
+        token,
+        **{"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"},
+    )
 
     assert response.status_code == 200
     assert [scenario_id for scenario_id, _ in run_service.calls] == ["feedback_success"]
@@ -164,7 +227,10 @@ def test_origin_requires_the_exact_canonical_string(
     ],
 )
 def test_raw_host_authority_rejects_non_authority_forms(
-    client: TestClient, run_service: RecordingRunService, host: str, expected_status: int
+    client: TestClient,
+    run_service: RecordingRunService,
+    host: str,
+    expected_status: int,
 ) -> None:
     """Permissive URL parsing could otherwise discard a hostile Host suffix before comparison."""
     token = _csrf_token(client.get("/"))
@@ -240,13 +306,38 @@ def test_duplicate_security_headers_fail_closed_before_service(
     ("path", "content", "header_overrides", "expected_status"),
     [
         ("/scenarios/not-fixed/runs", "csrf_token=token", {}, 404),
-        ("/scenarios/feedback_success/runs", "csrf_token=token", {"Origin": "https://evil.example.com"}, 403),
-        ("/scenarios/feedback_success/runs", "csrf_token=token", {"Host": "evil.example.com"}, 403),
-        ("/scenarios/feedback_success/runs", "{}", {"Content-Type": "application/json"}, 415),
+        (
+            "/scenarios/feedback_success/runs",
+            "csrf_token=token",
+            {"Origin": "https://evil.example.com"},
+            403,
+        ),
+        (
+            "/scenarios/feedback_success/runs",
+            "csrf_token=token",
+            {"Host": "evil.example.com"},
+            403,
+        ),
+        (
+            "/scenarios/feedback_success/runs",
+            "{}",
+            {"Content-Type": "application/json"},
+            415,
+        ),
         ("/scenarios/feedback_success/runs", "csrf_token=token", {"Cookie": ""}, 403),
         ("/scenarios/feedback_success/runs", "csrf_token=other", {}, 403),
-        ("/scenarios/feedback_success/runs", "csrf_token=token&csrf_token=again", {}, 400),
-        ("/scenarios/feedback_success/runs", "csrf_token=token&prompt=free-text", {}, 400),
+        (
+            "/scenarios/feedback_success/runs",
+            "csrf_token=token&csrf_token=again",
+            {},
+            400,
+        ),
+        (
+            "/scenarios/feedback_success/runs",
+            "csrf_token=token&prompt=free-text",
+            {},
+            400,
+        ),
         ("/scenarios/feedback_success/runs", "csrf_token=%ZZ", {}, 400),
         ("/scenarios/feedback_success/runs", "csrf_token=%C3%A9", {}, 400),
         ("/scenarios/feedback_success/runs", "csrf_token=token&", {}, 400),
@@ -265,7 +356,9 @@ def test_each_rejected_request_stops_before_service_invocation(
     token = _csrf_token(client.get("/"))
     content = content.replace("csrf_token=token", f"csrf_token={token}")
 
-    response = client.post(path, content=content, headers=_headers(token, **header_overrides))
+    response = client.post(
+        path, content=content, headers=_headers(token, **header_overrides)
+    )
 
     assert response.status_code == expected_status
     assert run_service.calls == []
@@ -314,7 +407,11 @@ def test_streaming_body_limit_stops_after_the_over_limit_chunk() -> None:
     received = 0
     sent: list[dict[str, object]] = []
     messages = [
-        {"type": "http.request", "body": b"csrf_token=" + b"x" * 4097, "more_body": True},
+        {
+            "type": "http.request",
+            "body": b"csrf_token=" + b"x" * 4097,
+            "more_body": True,
+        },
         {"type": "http.request", "body": b"should-not-be-read", "more_body": False},
     ]
 
@@ -362,7 +459,10 @@ def test_forwarded_headers_do_not_override_host_validation(
         client,
         token,
         Host="evil.example.com",
-        **{"X-Forwarded-Host": "demo.example.com", "Forwarded": "host=demo.example.com"},
+        **{
+            "X-Forwarded-Host": "demo.example.com",
+            "Forwarded": "host=demo.example.com",
+        },
     )
 
     assert response.status_code == 403
@@ -452,13 +552,13 @@ def test_fixed_error_responses_log_only_random_event_id_and_code(
     ]
     assert response.status_code == expected_status
     assert messages and len(messages) == 1
-    assert re.fullmatch(
-        rf"event_id=[0-9a-f]{{32}} code={expected_code}", messages[0]
-    )
+    assert re.fullmatch(rf"event_id=[0-9a-f]{{32}} code={expected_code}", messages[0])
     assert secret not in messages[0]
 
 
-def test_error_event_ids_are_unique_per_response(caplog: pytest.LogCaptureFixture) -> None:
+def test_error_event_ids_are_unique_per_response(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     service = RecordingRunService()
     app = create_demo_app(
         web_settings=WebSettings(canonical_origin="https://demo.example.com"),
@@ -501,7 +601,9 @@ def test_unexpected_route_error_is_sanitized_and_has_security_headers() -> None:
         scenario_registry=ExplodingRegistry(),  # type: ignore[arg-type]
         run_service=service,
     )
-    with TestClient(app, base_url="https://demo.example.com", raise_server_exceptions=False) as client:
+    with TestClient(
+        app, base_url="https://demo.example.com", raise_server_exceptions=False
+    ) as client:
         response = client.post(
             "/scenarios/feedback_success/runs",
             content="csrf_token=token",

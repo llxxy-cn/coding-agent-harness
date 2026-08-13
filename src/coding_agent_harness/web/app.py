@@ -8,14 +8,13 @@ import re
 import secrets
 import string
 import tempfile
-from collections.abc import Iterable
-from html import escape
 from pathlib import Path
 from typing import Protocol
 from urllib.parse import parse_qsl, urlparse
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
@@ -43,6 +42,7 @@ _IPV6_AUTHORITY_PATTERN = re.compile(r"\[([0-9A-Fa-f:.]+)\](?::([0-9]+))?\Z")
 _CSRF_NONCE_PATTERN = re.compile(r"[A-Za-z0-9_-]+\Z")
 _LOGGER = logging.getLogger(__name__)
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).with_name("templates")))
+_STATIC_DIRECTORY = Path(__file__).with_name("static")
 _RUN_SERVICE_ERROR_STATUSES = {
     "timeout": 504,
     "cleanup_failed": 500,
@@ -201,21 +201,6 @@ def _parse_csrf_form(body: bytes) -> str | None:
     return token
 
 
-def _scenario_list_page(scenario_ids: Iterable[str], csrf_token: str) -> str:
-    """Render the minimal C1 page without depending on the C2 template assets."""
-    forms = "".join(
-        "<li>"
-        f"<span>{escape(scenario_id)}</span>"
-        f'<form method="post" action="/scenarios/{escape(scenario_id)}/runs">'
-        f'<input type="hidden" name="csrf_token" value="{escape(csrf_token)}">'
-        '<button type="submit">Run</button>'
-        "</form>"
-        "</li>"
-        for scenario_id in scenario_ids
-    )
-    return f"<!doctype html><html><body><h1>Fixed demo scenarios</h1><ul>{forms}</ul></body></html>"
-
-
 def create_demo_app(
     *,
     web_settings: WebSettings,
@@ -224,6 +209,7 @@ def create_demo_app(
 ) -> FastAPI:
     """Create the C1 app with all untrusted-request checks before service invocation."""
     app = FastAPI()
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIRECTORY)), name="static")
     canonical_authority = urlparse(web_settings.canonical_origin).netloc
 
     @app.middleware("http")
@@ -238,10 +224,25 @@ def create_demo_app(
         response.headers["Content-Security-Policy"] = _CSP
         return response
 
+    @app.get("/healthz", response_class=PlainTextResponse)
+    async def healthz() -> PlainTextResponse:
+        """Return a fixed liveness response without touching demo state."""
+        return PlainTextResponse("ok")
+
     @app.get("/", response_class=HTMLResponse)
-    async def list_scenarios() -> HTMLResponse:
+    async def list_scenarios(request: Request) -> HTMLResponse:
         csrf_token = generate_csrf_nonce()
-        response = HTMLResponse(_scenario_list_page(scenario_registry, csrf_token))
+        response = _TEMPLATES.TemplateResponse(
+            request=request,
+            name="scenarios.html",
+            context={
+                "scenarios": tuple(
+                    scenario_registry.get(scenario_id)
+                    for scenario_id in scenario_registry
+                ),
+                "csrf_token": csrf_token,
+            },
+        )
         response.set_cookie(CSRF_COOKIE_NAME, csrf_token, **CSRF_COOKIE_ATTRIBUTES)
         return response
 
